@@ -172,17 +172,12 @@ fn criterion_benchmark(criterion: &mut Criterion) {
     });
 
     for spin_under_lock_count in spin_under_lock_count_list {
-        let name_of_spin_under_lock_count = String::from(name_of!(spin_under_lock_count));
-
         for operation_count_per_thread in operation_count_per_thread_list {
-            let name_of_operation_count_per_thread =
-                String::from(name_of!(operation_count_per_thread));
-
             for bench_fn_and_name in bench_fn_and_name_list.iter() {
                 let (bench_fn, bench_fn_name) =
                     (bench_fn_and_name.bench_fn, &bench_fn_and_name.bench_fn_name);
                 criterion.bench_function(
-                    &format!("{bench_fn_name}|{name_of_operation_count_per_thread}={operation_count_per_thread}|{name_of_spin_under_lock_count}={spin_under_lock_count}|concurrent_thread_count={max_concurrent_thread_count}"),
+                    &format!("{bench_fn_name}|{operation_count_per_thread}|{spin_under_lock_count}|{max_concurrent_thread_count}"),
                     |bencher| {
                         bencher.iter(|| {
                             bench_fn(black_box(max_concurrent_thread_count), black_box(operation_count_per_thread), black_box(spin_under_lock_count))
