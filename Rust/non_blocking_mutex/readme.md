@@ -34,7 +34,7 @@ non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state| {
 | increment_once_under_mutex_spinny       | 10.603 ns |
 
 ## Emulating expensive operation by spinning N times under lock with many threads and highest contention
-| benchmark_name                                  | operation_count_per_thread | spin_under_lock_count | concurrent_thread_count | average_time |
+| Benchmark name                                  | Operation count per thread | Spin under lock count | Concurrent thread count | Average time |
 |:------------------------------------------------|---------------------------:|----------------------:|------------------------:|-------------:|
 | increment_under_non_blocking_mutex_concurrently |                      1_000 |                     0 |                      24 |     3.408 ms |
 | increment_under_mutex_blockingly_concurrently   |                      1_000 |                     0 |                      24 |     1.072 ms |
