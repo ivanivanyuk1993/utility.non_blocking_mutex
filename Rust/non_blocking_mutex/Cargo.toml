@@ -2,12 +2,12 @@
 categories = ["concurrency"]
 description = "NonBlockingMutex is Mutex which doesn't block threads, but executes tasks on first thread who acquires lock or schedules task on thread which acquired lock"
 homepage = "https://github.com/ivanivanyuk1993/utility.non_blocking_mutex"
-keywords = ["concurrency", "mutex", "non_blocking", "non_blocking_lock", "non_blocking_mutex"]
+keywords = ["concurrency", "lock", "mutex", "non_blocking_lock", "non_blocking_mutex"]
 license = "MIT OR Apache-2.0"
 name = "non_blocking_mutex"
 readme = "readme.md"
 repository = "https://github.com/ivanivanyuk1993/utility.non_blocking_mutex"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
