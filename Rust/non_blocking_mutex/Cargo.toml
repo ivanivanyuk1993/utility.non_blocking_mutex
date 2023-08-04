@@ -7,13 +7,13 @@ license = "MIT OR Apache-2.0"
 name = "non_blocking_mutex"
 readme = "readme.md"
 repository = "https://github.com/ivanivanyuk1993/utility.non_blocking_mutex"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-sharded_queue = { path = "../../../sharded_queue/Rust/sharded_queue", version = "1.0.10" }
+sharded_queue = { path = "../../../sharded_queue/Rust/sharded_queue", version = "1.0.9" }
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
