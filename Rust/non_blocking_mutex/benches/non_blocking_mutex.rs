@@ -36,8 +36,11 @@ fn increment_once_under_mutex_spinny(number_mutex: &Mutex<usize>) {
     }
 }
 
-fn increment_under_non_blocking_mutex_concurrently(operation_count: usize, spin_wait_count: usize) {
-    let max_concurrent_thread_count = available_parallelism().unwrap().get();
+fn increment_under_non_blocking_mutex_concurrently(
+    max_concurrent_thread_count: usize,
+    operation_count: usize,
+    spin_under_lock_count: usize,
+) {
     let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
 
     scope(|scope| {
@@ -48,10 +51,10 @@ fn increment_under_non_blocking_mutex_concurrently(operation_count: usize, spin_
                         *state += 1;
                         black_box(*state);
 
-                        let mut spin_wait_count_left = spin_wait_count;
-                        while spin_wait_count_left != 0 {
+                        let mut spin_under_lock_count_left = spin_under_lock_count;
+                        while spin_under_lock_count_left != 0 {
                             hint::spin_loop();
-                            spin_wait_count_left -= 1;
+                            spin_under_lock_count_left -= 1;
                         }
                     })
                 }
@@ -60,8 +63,11 @@ fn increment_under_non_blocking_mutex_concurrently(operation_count: usize, spin_
     });
 }
 
-fn increment_under_mutex_blockingly_concurrently(operation_count: usize, spin_wait_count: usize) {
-    let max_concurrent_thread_count = available_parallelism().unwrap().get();
+fn increment_under_mutex_blockingly_concurrently(
+    max_concurrent_thread_count: usize,
+    operation_count: usize,
+    spin_under_lock_count: usize,
+) {
     let state_mutex = Mutex::new(0);
 
     scope(|scope| {
@@ -73,10 +79,10 @@ fn increment_under_mutex_blockingly_concurrently(operation_count: usize, spin_wa
                     *state += 1;
                     black_box(*state);
 
-                    let mut spin_wait_count_left = spin_wait_count;
-                    while spin_wait_count_left != 0 {
+                    let mut spin_under_lock_count_left = spin_under_lock_count;
+                    while spin_under_lock_count_left != 0 {
                         hint::spin_loop();
-                        spin_wait_count_left -= 1;
+                        spin_under_lock_count_left -= 1;
                     }
                 }
             });
@@ -84,8 +90,11 @@ fn increment_under_mutex_blockingly_concurrently(operation_count: usize, spin_wa
     });
 }
 
-fn increment_under_mutex_spinny_concurrently(operation_count: usize, spin_wait_count: usize) {
-    let max_concurrent_thread_count = available_parallelism().unwrap().get();
+fn increment_under_mutex_spinny_concurrently(
+    max_concurrent_thread_count: usize,
+    operation_count: usize,
+    spin_under_lock_count: usize,
+) {
     let state_mutex = Mutex::new(0);
 
     scope(|scope| {
@@ -99,10 +108,10 @@ fn increment_under_mutex_spinny_concurrently(operation_count: usize, spin_wait_c
                             *state += 1;
                             black_box(*state);
 
-                            let mut spin_wait_count_left = spin_wait_count;
-                            while spin_wait_count_left != 0 {
+                            let mut spin_under_lock_count_left = spin_under_lock_count;
+                            while spin_under_lock_count_left != 0 {
                                 hint::spin_loop();
-                                spin_wait_count_left -= 1;
+                                spin_under_lock_count_left -= 1;
                             }
 
                             break;
@@ -116,7 +125,7 @@ fn increment_under_mutex_spinny_concurrently(operation_count: usize, spin_wait_c
 
 fn criterion_benchmark(criterion: &mut Criterion) {
     struct BenchFnAndName {
-        bench_fn: fn(usize, usize),
+        bench_fn: fn(usize, usize, usize),
         bench_fn_name: String,
     }
 
@@ -135,9 +144,9 @@ fn criterion_benchmark(criterion: &mut Criterion) {
         },
     ];
 
-    let operation_count_list = [1e3 as usize, 1e4 as usize];
+    let operation_count_per_thread_list = [1e3 as usize, 1e4 as usize];
 
-    let spin_wait_count_list = [0usize, 1e1 as usize, 1e2 as usize];
+    let spin_under_lock_count_list = [0usize, 1e1 as usize, 1e2 as usize];
 
     let max_concurrent_thread_count = available_parallelism().unwrap().get();
 
@@ -162,16 +171,21 @@ fn criterion_benchmark(criterion: &mut Criterion) {
         bencher.iter(|| increment_once_under_mutex_spinny(&number_mutex))
     });
 
-    for spin_wait_count in spin_wait_count_list {
-        for operation_count in operation_count_list {
+    for spin_under_lock_count in spin_under_lock_count_list {
+        let name_of_spin_under_lock_count = String::from(name_of!(spin_under_lock_count));
+
+        for operation_count_per_thread in operation_count_per_thread_list {
+            let name_of_operation_count_per_thread =
+                String::from(name_of!(operation_count_per_thread));
+
             for bench_fn_and_name in bench_fn_and_name_list.iter() {
                 let (bench_fn, bench_fn_name) =
                     (bench_fn_and_name.bench_fn, &bench_fn_and_name.bench_fn_name);
                 criterion.bench_function(
-                    &format!("{bench_fn_name}_{operation_count}_{spin_wait_count}"),
+                    &format!("{bench_fn_name}|{name_of_operation_count_per_thread}={operation_count_per_thread}|{name_of_spin_under_lock_count}={spin_under_lock_count}|concurrent_thread_count={max_concurrent_thread_count}"),
                     |bencher| {
                         bencher.iter(|| {
-                            bench_fn(black_box(operation_count), black_box(spin_wait_count))
+                            bench_fn(black_box(max_concurrent_thread_count), black_box(operation_count_per_thread), black_box(spin_under_lock_count))
                         })
                     },
                 );
