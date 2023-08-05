@@ -18,7 +18,7 @@ pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
 /// ## Why you should use [NonBlockingMutex]
 ///
 /// [NonBlockingMutex] is currently the fastest way to do
-/// expensive calculations under lock, or do cheap operations
+/// expensive calculations under lock, or do cheap calculations
 /// under lock when concurrency/load/contention is very high -
 /// see benchmarks in directory `benches` and run them with
 /// ```bash
@@ -67,7 +67,7 @@ pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
 /// there are no more tasks and first thread can finish execution loop,
 /// otherwise first thread gets next task from `task_queue` and runs task,
 /// then decrements tasks count after it was run and repeats check if
-/// `task_count` changed from 1 to 0 until there are no more tasks left.
+/// `task_count` changed from 1 to 0 and running tasks until there are no more tasks left.
 ///
 /// Not first threads also atomically increment `task_count`,
 /// do check if they are first, [Box] task and push task [Box] to `task_queue`
@@ -78,7 +78,7 @@ pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
 /// [NonBlockingMutex] performs worse than [std::sync::Mutex],
 /// but when contention is high
 /// (because we have more CPU-s or because we want to do expensive
-/// operations under lock), [NonBlockingMutex] performs better
+/// calculations under lock), [NonBlockingMutex] performs better
 /// than [std::sync::Mutex]
 ///
 ///
