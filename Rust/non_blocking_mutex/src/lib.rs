@@ -6,7 +6,6 @@ use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
 pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
     task_count: AtomicUsize,
@@ -14,14 +13,19 @@ pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
     unsafe_state: UnsafeCell<State>,
 }
 
-/// [NonBlockingMutex] is needed to run actions atomically without thread blocking, or context
-/// switch, or spin lock contention, or rescheduling on some scheduler
+/// # [NonBlockingMutex]
 ///
-/// Notice that it uses [ShardedQueue] which doesn't guarantee order of retrieval, hence
-/// [NonBlockingMutex] doesn't guarantee order of execution too, even of already added
-/// items
+/// ## Why you should use [NonBlockingMutex]
 ///
-/// # Examples
+/// [NonBlockingMutex] is currently the fastest way to do
+/// expensive calculations under lock, or do cheap operations
+/// under lock when concurrency/load/contention is very high -
+/// see benchmarks in directory `benches` and run them with
+/// ```bash
+/// cargo bench
+/// ```
+///
+/// ## Simple example
 /// ```rust
 /// use non_blocking_mutex::NonBlockingMutex;
 /// use std::thread::{available_parallelism};
@@ -33,6 +37,51 @@ pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
 ///     *state += 1;
 /// });
 /// ```
+///
+/// ## Why you may want to not use [NonBlockingMutex]
+///
+/// - [NonBlockingMutex] forces first thread to enter synchronized block to
+/// do all tasks(including added while it is running,
+/// potentially running forever if tasks are being added forever)
+///
+/// - It is more difficult to continue execution on same thread after
+/// synchronized logic is run, you need to schedule continuation on some
+/// scheduler when you want to continue after end of synchronized logic
+/// in new thread or introduce other synchronization primitives,
+/// like channels, or `WaitGroup`-s, or similar
+///
+/// - [NonBlockingMutex] performs worse than [std::sync::Mutex] when
+/// concurrency/load/contention is low
+///
+/// - Similar to [std::sync::Mutex], [NonBlockingMutex] doesn't guarantee
+/// order of execution, only atomicity of operations is guaranteed
+///
+/// ## Design explanation
+///
+/// First thread, which calls [NonBlockingMutex::run_if_first_or_schedule_on_first],
+/// atomically increments `task_count`, and,
+/// if thread was first to increment `task_count` from 0 to 1,
+/// first thread immediately executes first task,
+/// and then atomically decrements `task_count` and checks if `task_count`
+/// changed from 1 to 0. If `task_count` changed from 1 to 0 -
+/// there are no more tasks and first thread can finish execution loop,
+/// otherwise first thread gets next task from `task_queue` and runs task,
+/// then decrements tasks count after it was run and repeats check if
+/// `task_count` changed from 1 to 0 until there are no more tasks left.
+///
+/// Not first threads also atomically increment `task_count`,
+/// do check if they are first, [Box] task and push task [Box] to `task_queue`
+///
+/// This design allows us to avoid lock contention, but adds ~constant time
+/// of [Box]-ing task and putting task [Box] into concurrent `task_queue`, and
+/// incrementing and decrementing `task_count`, so when lock contention is low,
+/// [NonBlockingMutex] performs worse than [std::sync::Mutex],
+/// but when contention is high
+/// (because we have more CPU-s or because we want to do expensive
+/// operations under lock), [NonBlockingMutex] performs better
+/// than [std::sync::Mutex]
+///
+///
 ///
 /// ```
 /// use non_blocking_mutex::NonBlockingMutex;
