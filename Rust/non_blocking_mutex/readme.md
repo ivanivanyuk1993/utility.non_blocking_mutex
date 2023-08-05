@@ -16,7 +16,7 @@ cargo bench
 cargo add non_blocking_mutex
 ```
 
-## Simple example
+## Example
 ```rust
 use non_blocking_mutex::NonBlockingMutex;
 use std::thread::{available_parallelism};

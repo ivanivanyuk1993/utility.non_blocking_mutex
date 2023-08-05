@@ -25,7 +25,7 @@ pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
 /// cargo bench
 /// ```
 ///
-/// ## Simple example
+/// ## Example
 /// ```rust
 /// use non_blocking_mutex::NonBlockingMutex;
 /// use std::thread::{available_parallelism};
