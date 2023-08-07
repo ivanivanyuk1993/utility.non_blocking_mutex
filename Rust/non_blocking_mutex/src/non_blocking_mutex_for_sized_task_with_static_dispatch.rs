@@ -19,7 +19,7 @@ pub struct NonBlockingMutexForSizedTaskWithStaticDispatch<
 /// # [NonBlockingMutexForSizedTaskWithStaticDispatch]
 ///
 /// Unlike [crate::NonBlockingMutex], [NonBlockingMutexForSizedTaskWithStaticDispatch]
-/// allows to not use dynamic dispatch or [Box]-es tasks
+/// allows to not use dynamic dispatch or [Box] tasks
 ///
 /// ## Example
 /// ```rust

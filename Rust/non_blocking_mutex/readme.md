@@ -1,5 +1,10 @@
 # `NonBlockingMutex`
 
+[<img alt="github" src="https://img.shields.io/badge/github-non_blocking_mutex-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/ivanivanyuk1993/utility.non_blocking_mutex)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/non_blocking_mutex.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/non_blocking_mutex)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-non_blocking_mutex-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/non_blocking_mutex/latest/non_blocking_mutex/struct.NonBlockingMutex.html#nonblockingmutex)
+[![Build and test Rust](https://github.com/ivanivanyuk1993/utility.non_blocking_mutex/actions/workflows/rust.yml/badge.svg)](https://github.com/ivanivanyuk1993/utility.non_blocking_mutex/actions/workflows/rust.yml)
+
 ## Why you should use `NonBlockingMutex`
 
 `NonBlockingMutex` is currently the fastest way to do
