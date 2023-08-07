@@ -53,43 +53,52 @@ See benchmark logic in directory `benches` and reproduce results by running
 cargo bench
 ```
 ### Single fast operation in single thread without contention
-`NonBlockingMutex` performs only a little bit slower than `Mutex`
+Dynamic `NonBlockingMutex` performs only a little bit slower than `Mutex`
 when there is only 1 thread and 1 operation
 (because `NonBlockingMutex` doesn't `Box` and store in `ShardedQueue`
-first operation in loop) 
+first operation in loop), while `NonBlockingMutexForSizedTaskWithStaticDispatch`
+outperforms other synchronization options
+when there is only 1 thread and 1 operation
 
-| benchmark_name                          |      time |
-|:----------------------------------------|----------:|
-| increment_once_without_mutex            |  0.228 ns |
-| increment_once_under_non_blocking_mutex |  9.445 ns |
-| increment_once_under_mutex_blockingly   |  8.851 ns |
-| increment_once_under_mutex_spinny       | 10.603 ns |
+| benchmark_name                                  |      time |
+|:------------------------------------------------|----------:|
+| increment_once_without_mutex                    |  0.228 ns |
+| increment_once_under_non_blocking_mutex_static  |  8.544 ns |
+| increment_once_under_non_blocking_mutex_dynamic |  9.445 ns |
+| increment_once_under_mutex_blockingly           |  8.851 ns |
+| increment_once_under_mutex_spinny               | 10.603 ns |
 
 ### Emulating expensive operation by spinning N times under lock with many threads and highest contention
 With higher contention(caused by long time under lock in our case,
 but can also be caused by higher CPU count), `NonBlockingMutex`
 starts to perform better than `std::sync::Mutex`
 
-| Benchmark name                                  | Operation count per thread | Spin under lock count | Concurrent thread count | average_time |
-|:------------------------------------------------|---------------------------:|----------------------:|------------------------:|-------------:|
-| increment_under_non_blocking_mutex_concurrently |                      1_000 |                     0 |                      24 |     3.408 ms |
-| increment_under_mutex_blockingly_concurrently   |                      1_000 |                     0 |                      24 |     1.072 ms |
-| increment_under_mutex_spinny_concurrently       |                      1_000 |                     0 |                      24 |     4.376 ms |
-| increment_under_non_blocking_mutex_concurrently |                     10_000 |                     0 |                      24 |    42.584 ms |
-| increment_under_mutex_blockingly_concurrently   |                     10_000 |                     0 |                      24 |    14.960 ms |
-| increment_under_mutex_spinny_concurrently       |                     10_000 |                     0 |                      24 |    94.658 ms |
-| increment_under_non_blocking_mutex_concurrently |                      1_000 |                    10 |                      24 |    12.280 ms |
-| increment_under_mutex_blockingly_concurrently   |                      1_000 |                    10 |                      24 |     8.345 ms |
-| increment_under_mutex_spinny_concurrently       |                      1_000 |                    10 |                      24 |    34.977 ms |
-| increment_under_non_blocking_mutex_concurrently |                     10_000 |                    10 |                      24 |    70.013 ms |
-| increment_under_mutex_blockingly_concurrently   |                     10_000 |                    10 |                      24 |    84.143 ms |
-| increment_under_mutex_spinny_concurrently       |                     10_000 |                    10 |                      24 |    349.07 ms |
-| increment_under_non_blocking_mutex_concurrently |                      1_000 |                   100 |                      24 |    44.670 ms |
-| increment_under_mutex_blockingly_concurrently   |                      1_000 |                   100 |                      24 |    47.335 ms |
-| increment_under_mutex_spinny_concurrently       |                      1_000 |                   100 |                      24 |   117.570 ms |
-| increment_under_non_blocking_mutex_concurrently |                     10_000 |                   100 |                      24 |   378.230 ms |
-| increment_under_mutex_blockingly_concurrently   |                     10_000 |                   100 |                      24 |   801.090 ms |
-| increment_under_mutex_spinny_concurrently       |                     10_000 |                   100 |                      24 |  1200.400 ms |
+| Benchmark name                                          | Operation count per thread | Spin under lock count | Concurrent thread count | average_time |
+|:--------------------------------------------------------|---------------------------:|----------------------:|------------------------:|-------------:|
+| increment_under_non_blocking_mutex_concurrently_static  |                      1_000 |                     0 |                      24 |     2.313 ms |
+| increment_under_non_blocking_mutex_concurrently_dynamic |                      1_000 |                     0 |                      24 |     3.408 ms |
+| increment_under_mutex_blockingly_concurrently           |                      1_000 |                     0 |                      24 |     1.072 ms |
+| increment_under_mutex_spinny_concurrently               |                      1_000 |                     0 |                      24 |     4.376 ms |
+| increment_under_non_blocking_mutex_concurrently_static  |                     10_000 |                     0 |                      24 |    23.969 ms |
+| increment_under_non_blocking_mutex_concurrently_dynamic |                     10_000 |                     0 |                      24 |    42.584 ms |
+| increment_under_mutex_blockingly_concurrently           |                     10_000 |                     0 |                      24 |    14.960 ms |
+| increment_under_mutex_spinny_concurrently               |                     10_000 |                     0 |                      24 |    94.658 ms |
+| increment_under_non_blocking_mutex_concurrently_static  |                      1_000 |                    10 |                      24 |     9.457 ms |
+| increment_under_non_blocking_mutex_concurrently_dynamic |                      1_000 |                    10 |                      24 |    12.280 ms |
+| increment_under_mutex_blockingly_concurrently           |                      1_000 |                    10 |                      24 |     8.345 ms |
+| increment_under_mutex_spinny_concurrently               |                      1_000 |                    10 |                      24 |    34.977 ms |
+| increment_under_non_blocking_mutex_concurrently_static  |                     10_000 |                    10 |                      24 |    58.297 ms |
+| increment_under_non_blocking_mutex_concurrently_dynamic |                     10_000 |                    10 |                      24 |    70.013 ms |
+| increment_under_mutex_blockingly_concurrently           |                     10_000 |                    10 |                      24 |    84.143 ms |
+| increment_under_mutex_spinny_concurrently               |                     10_000 |                    10 |                      24 |   349.070 ms |
+| increment_under_non_blocking_mutex_concurrently_static  |                      1_000 |                   100 |                      24 |    39.569 ms |
+| increment_under_non_blocking_mutex_concurrently_dynamic |                      1_000 |                   100 |                      24 |    44.670 ms |
+| increment_under_mutex_blockingly_concurrently           |                      1_000 |                   100 |                      24 |    47.335 ms |
+| increment_under_mutex_spinny_concurrently               |                      1_000 |                   100 |                      24 |   117.570 ms |
+| increment_under_non_blocking_mutex_concurrently_static  |                     10_000 |                   100 |                      24 |   358.480 ms |
+| increment_under_non_blocking_mutex_concurrently_dynamic |                     10_000 |                   100 |                      24 |   378.230 ms |
+| increment_under_mutex_blockingly_concurrently           |                     10_000 |                   100 |                      24 |   801.090 ms |
+| increment_under_mutex_spinny_concurrently               |                     10_000 |                   100 |                      24 |  1200.400 ms |
 
 ## Design explanation
 

@@ -1,6 +1,7 @@
-use std::sync::Arc;
-use crate::{MutexGuard, NonBlockingMutex};
+use crate::mutex_guard::MutexGuard;
+use crate::NonBlockingMutex;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 impl<'captured_variables, State> NonBlockingMutex<'captured_variables, State> {
     #[inline]
@@ -17,12 +18,12 @@ impl<'captured_variables, State> NonBlockingMutex<'captured_variables, State> {
         &self,
         run_with_state: impl FnOnce(MutexGuard<State>) + 'captured_variables,
     ) {
-        run_with_state(unsafe { MutexGuard::new(self) });
+        run_with_state(unsafe { MutexGuard::new(&self.unsafe_state) });
     }
 }
 
 impl<'captured_variables, State: Send + 'captured_variables>
-NonBlockingMutex<'captured_variables, State>
+    NonBlockingMutex<'captured_variables, State>
 {
     /// [NonBlockingMutex::run_if_first_or_schedule_on_first_to_run_last]
     /// should be called only if there won't be other calls
@@ -54,7 +55,7 @@ NonBlockingMutex<'captured_variables, State>
                 .push_back(Box::new(recursive_run_with_state));
         } else {
             // If we acquired first lock, run should be executed immediately and run loop started
-            run_with_state(unsafe { MutexGuard::new(non_blocking_mutex_ref) });
+            run_with_state(unsafe { MutexGuard::new(&non_blocking_mutex_ref.unsafe_state) });
             // Since we know that no more calls will happen, we don't need to decrement
         }
     }

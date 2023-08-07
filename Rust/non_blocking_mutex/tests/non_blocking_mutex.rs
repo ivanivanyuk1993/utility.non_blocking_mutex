@@ -1,5 +1,4 @@
 use non_blocking_mutex::NonBlockingMutex;
-use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{available_parallelism, scope};
@@ -61,9 +60,11 @@ fn can_use_Fn_recursively() {
     };
 
     {
-        let unsafe_non_blocking_mutex =
-            UnsafeCell::new(NonBlockingMutex::new(max_concurrent_thread_count, 0));
-        let non_blocking_mutex = unsafe { &*unsafe_non_blocking_mutex.get() };
+        let non_blocking_mutex_arc =
+            Arc::new(NonBlockingMutex::new(max_concurrent_thread_count, 0));
+        let non_blocking_mutex = non_blocking_mutex_arc.as_ref();
+        let non_blocking_mutex_arc_clone = non_blocking_mutex_arc.clone();
+        let non_blocking_mutex_arc_clone_2 = non_blocking_mutex_arc.clone();
 
         increment(&mut count);
         increment(&mut count);
@@ -71,21 +72,25 @@ fn can_use_Fn_recursively() {
         non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state_count| {
             increment(&mut state_count);
             increment(&mut state_count);
-            non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state_count_2| {
+            non_blocking_mutex_arc_clone.run_if_first_or_schedule_on_first(|mut state_count_2| {
                 increment(&mut state_count_2);
                 increment(&mut state_count_2);
                 state_1 = *state_count_2;
             });
+            drop(non_blocking_mutex_arc_clone);
         });
 
         non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state_count| {
             increment(&mut state_count);
             increment(&mut state_count);
-            non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state_count_2| {
-                increment(&mut state_count_2);
-                increment(&mut state_count_2);
-                state_2 = *state_count_2;
-            });
+            non_blocking_mutex_arc_clone_2.run_if_first_or_schedule_on_first(
+                |mut state_count_2| {
+                    increment(&mut state_count_2);
+                    increment(&mut state_count_2);
+                    state_2 = *state_count_2;
+                },
+            );
+            drop(non_blocking_mutex_arc_clone_2);
         });
 
         non_blocking_mutex.run_if_first_or_schedule_on_first(|state_count| {
@@ -150,9 +155,10 @@ fn can_use_FnMut_recursively() {
     };
 
     {
-        let unsafe_non_blocking_mutex =
-            UnsafeCell::new(NonBlockingMutex::new(max_concurrent_thread_count, 0));
-        let non_blocking_mutex = unsafe { &*unsafe_non_blocking_mutex.get() };
+        let non_blocking_mutex_arc =
+            Arc::new(NonBlockingMutex::new(max_concurrent_thread_count, 0));
+        let non_blocking_mutex = non_blocking_mutex_arc.as_ref();
+        let non_blocking_mutex_arc_clone = non_blocking_mutex_arc.clone();
 
         increment(&mut count);
         increment(&mut count);
@@ -160,10 +166,11 @@ fn can_use_FnMut_recursively() {
         non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state_count| {
             increment(&mut state_count);
             increment(&mut state_count);
-            non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state_count_2| {
+            non_blocking_mutex_arc_clone.run_if_first_or_schedule_on_first(|mut state_count_2| {
                 increment(&mut state_count_2);
                 increment(&mut state_count_2);
             });
+            drop(non_blocking_mutex_arc_clone);
         });
 
         non_blocking_mutex.run_if_first_or_schedule_on_first(|state_count| {
