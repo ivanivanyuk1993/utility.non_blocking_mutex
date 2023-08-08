@@ -27,6 +27,9 @@ pub struct NonBlockingMutexForSizedTaskWithStaticDispatch<
 /// use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
 /// use std::thread::{available_parallelism};
 ///
+/// /// How many threads can physically access [NonBlockingMutexForSizedTaskWithStaticDispatch]
+/// /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+/// /// used to store queue of tasks
 /// let max_concurrent_thread_count = available_parallelism().unwrap().get();
 ///
 /// let non_blocking_mutex = NonBlockingMutexForSizedTaskWithStaticDispatch::new(max_concurrent_thread_count, 0);
@@ -40,6 +43,12 @@ where
     for<'unsafe_state_ref> TSizedTaskWithStaticDispatch:
         SizedTaskWithStaticDispatch<'unsafe_state_ref, State>,
 {
+    /// # Arguments
+    ///
+    /// * `max_concurrent_thread_count` - how many threads can physically access
+    /// [NonBlockingMutexForSizedTaskWithStaticDispatch]
+    /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+    /// used to store queue of tasks
     pub fn new(max_concurrent_thread_count: usize, state: State) -> Self {
         Self {
             task_count: AtomicUsize::new(0),

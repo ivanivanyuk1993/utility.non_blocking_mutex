@@ -31,6 +31,9 @@ pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
 /// use non_blocking_mutex::NonBlockingMutex;
 /// use std::thread::{available_parallelism};
 ///
+/// /// How many threads can physically access [NonBlockingMutex]
+/// /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+/// /// used to store queue of tasks
 /// let max_concurrent_thread_count = available_parallelism().unwrap().get();
 ///
 /// let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
@@ -82,6 +85,11 @@ pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
 /// calculations under lock), [NonBlockingMutex] performs better
 /// than [std::sync::Mutex]
 impl<'captured_variables, State> NonBlockingMutex<'captured_variables, State> {
+    /// # Arguments
+    ///
+    /// * `max_concurrent_thread_count` - how many threads can physically access [NonBlockingMutex]
+    /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+    /// used to store queue of tasks
     pub fn new(max_concurrent_thread_count: usize, state: State) -> Self {
         Self {
             task_count: AtomicUsize::new(0),
