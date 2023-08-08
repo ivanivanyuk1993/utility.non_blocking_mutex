@@ -40,7 +40,6 @@ where
     for<'unsafe_state_ref> TSizedTaskWithStaticDispatch:
         SizedTaskWithStaticDispatch<'unsafe_state_ref, State>,
 {
-    #[inline]
     pub fn new(max_concurrent_thread_count: usize, state: State) -> Self {
         Self {
             task_count: AtomicUsize::new(0),
@@ -51,7 +50,6 @@ where
 
     /// Please don't forget that order of execution is not guaranteed. Atomicity of operations is guaranteed,
     /// but order can be random
-    #[inline]
     pub fn run_if_first_or_schedule_on_first(&self, task: TSizedTaskWithStaticDispatch) {
         if self.task_count.fetch_add(1, Ordering::Acquire) != 0 {
             self.task_queue.push_back(task);

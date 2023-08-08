@@ -82,7 +82,6 @@ pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
 /// calculations under lock), [NonBlockingMutex] performs better
 /// than [std::sync::Mutex]
 impl<'captured_variables, State> NonBlockingMutex<'captured_variables, State> {
-    #[inline]
     pub fn new(max_concurrent_thread_count: usize, state: State) -> Self {
         Self {
             task_count: AtomicUsize::new(0),
@@ -93,7 +92,6 @@ impl<'captured_variables, State> NonBlockingMutex<'captured_variables, State> {
 
     /// Please don't forget that order of execution is not guaranteed. Atomicity of operations is guaranteed,
     /// but order can be random
-    #[inline]
     pub fn run_if_first_or_schedule_on_first(
         &self,
         run_with_state: impl FnOnce(MutexGuard<State>) + Send + 'captured_variables,

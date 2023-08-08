@@ -4,7 +4,6 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 impl<'captured_variables, State> NonBlockingMutex<'captured_variables, State> {
-    #[inline]
     pub fn has_no_running_tasks(&self, ordering: Ordering) -> bool {
         return self.task_count.load(ordering) == 0;
     }
@@ -13,7 +12,6 @@ impl<'captured_variables, State> NonBlockingMutex<'captured_variables, State> {
     /// should be called only if there won't be other calls
     /// to methods of [NonBlockingMutex],
     /// to be sure that it is run last, like inside [Drop]
-    #[inline]
     pub unsafe fn run_knowing_that_no_other_runs_are_in_progress_and_no_more_runs_will_happen(
         &self,
         run_with_state: impl FnOnce(MutexGuard<State>) + 'captured_variables,
@@ -29,7 +27,6 @@ impl<'captured_variables, State: Send + 'captured_variables>
     /// should be called only if there won't be other calls
     /// to [NonBlockingMutex::run_if_first_or_schedule_on_first],
     /// to be sure that it is run last, like inside [Drop]
-    #[inline]
     pub unsafe fn run_if_first_or_schedule_on_first_to_run_last(
         non_blocking_mutex_arc: Arc<Self>,
         run_with_state: impl FnOnce(MutexGuard<State>) + Send + 'captured_variables,
