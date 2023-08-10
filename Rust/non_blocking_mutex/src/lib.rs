@@ -4,12 +4,13 @@ pub mod non_blocking_mutex_for_sized_task_with_static_dispatch;
 pub mod sized_task_with_static_dispatch;
 
 use crate::mutex_guard::MutexGuard;
+use crossbeam_utils::CachePadded;
 use sharded_queue::ShardedQueue;
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct NonBlockingMutex<'captured_variables, State: ?Sized> {
-    task_count: AtomicUsize,
+    task_count: CachePadded<AtomicUsize>,
     task_queue: ShardedQueue<Box<dyn FnOnce(MutexGuard<State>) + Send + 'captured_variables>>,
     unsafe_state: UnsafeCell<State>,
 }
@@ -92,7 +93,7 @@ impl<'captured_variables, State> NonBlockingMutex<'captured_variables, State> {
     /// used to store queue of tasks
     pub fn new(max_concurrent_thread_count: usize, state: State) -> Self {
         Self {
-            task_count: AtomicUsize::new(0),
+            task_count: CachePadded::new(AtomicUsize::new(0)),
             task_queue: ShardedQueue::new(max_concurrent_thread_count),
             unsafe_state: UnsafeCell::new(state),
         }
