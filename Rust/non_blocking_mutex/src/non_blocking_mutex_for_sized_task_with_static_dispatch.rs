@@ -3,6 +3,7 @@ use crate::MutexGuard;
 use sharded_queue::ShardedQueue;
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use crossbeam_utils::CachePadded;
 
 pub struct NonBlockingMutexForSizedTaskWithStaticDispatch<
     State: ?Sized,
@@ -11,7 +12,7 @@ pub struct NonBlockingMutexForSizedTaskWithStaticDispatch<
     for<'unsafe_state_ref> TSizedTaskWithStaticDispatch:
         SizedTaskWithStaticDispatch<'unsafe_state_ref, State>,
 {
-    task_count: AtomicUsize,
+    task_count: CachePadded<AtomicUsize>,
     task_queue: ShardedQueue<TSizedTaskWithStaticDispatch>,
     unsafe_state: UnsafeCell<State>,
 }
@@ -51,7 +52,7 @@ where
     /// used to store queue of tasks
     pub fn new(max_concurrent_thread_count: usize, state: State) -> Self {
         Self {
-            task_count: AtomicUsize::new(0),
+            task_count: CachePadded::new(AtomicUsize::new(0)),
             task_queue: ShardedQueue::new(max_concurrent_thread_count),
             unsafe_state: UnsafeCell::new(state),
         }
