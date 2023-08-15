@@ -342,3 +342,43 @@ fn dynamic_non_blocking_mutex_task_should_have_size_of_boxed_dyn_fn_once() {
         size_of::<Box<dyn FnOnce()>>()
     );
 }
+
+#[test]
+fn can_capture_variables_in_scoped_threads() {
+    /// How many threads can physically access [NonBlockingMutex]
+    /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+    /// used to store queue of tasks
+    let max_concurrent_thread_count = available_parallelism().unwrap().get();
+
+    let mut state_snapshot_before_increment = 0;
+    let mut state_snapshot_after_increment = 0;
+
+    let mut state_snapshot_before_decrement = 0;
+    let mut state_snapshot_after_decrement = 0;
+
+    /// Will infer exact type and size of struct [Task] and
+    /// make sized [NonBlockingMutex] which takes only [Task]
+    /// without ever requiring [Box]-ing or dynamic dispatch
+    let non_blocking_mutex = DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0);
+
+    scope(|scope| {
+        scope.spawn(|| {
+            non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|mut state| {
+                *(&mut state_snapshot_before_increment) = *state;
+                *state += 1;
+                *(&mut state_snapshot_after_increment) = *state;
+            });
+            non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|mut state| {
+                *(&mut state_snapshot_before_decrement) = *state;
+                *state -= 1;
+                *(&mut state_snapshot_after_decrement) = *state;
+            });
+        });
+    });
+
+    assert_eq!(state_snapshot_before_increment, 0);
+    assert_eq!(state_snapshot_after_increment, 1);
+
+    assert_eq!(state_snapshot_before_decrement, 1);
+    assert_eq!(state_snapshot_after_decrement, 0);
+}
