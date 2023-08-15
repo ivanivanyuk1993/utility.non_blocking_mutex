@@ -2,7 +2,7 @@ use crate::mutex_guard::MutexGuard;
 
 /// Implementing custom [FnOnce] is unstable,
 /// so we need [NonBlockingMutexTask]
-pub trait NonBlockingMutexTask<State: ?Sized>: Send + Sized {
+pub trait NonBlockingMutexTask<State: ?Sized>: Send {
     /// We don't need to specify `'unsafe_state_ref` here,
     /// because all references held by [NonBlockingMutexTask] (including those in [State])
     /// must outlive [crate::non_blocking_mutex::NonBlockingMutex]
