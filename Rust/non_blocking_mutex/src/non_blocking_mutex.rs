@@ -9,9 +9,9 @@ pub struct NonBlockingMutex<
     State: ?Sized,
     TNonBlockingMutexTask: for<'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, State>,
 > {
-    task_count: CachePadded<AtomicUsize>,
-    task_queue: ShardedQueue<TNonBlockingMutexTask>,
-    unsafe_state: UnsafeCell<State>,
+    pub(crate) task_count: CachePadded<AtomicUsize>,
+    pub(crate) task_queue: ShardedQueue<TNonBlockingMutexTask>,
+    pub(crate) unsafe_state: UnsafeCell<State>,
 }
 
 /// # [NonBlockingMutex]

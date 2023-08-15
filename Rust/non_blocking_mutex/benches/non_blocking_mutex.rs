@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use nameof::name_of;
+use non_blocking_mutex::dynamic_non_blocking_mutex::DynamicNonBlockingMutex;
 use non_blocking_mutex::mutex_guard::MutexGuard;
 use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 use std::hint;
@@ -18,15 +19,14 @@ fn increment_once_under_non_blocking_mutex_static<Task: Send + FnOnce(MutexGuard
     non_blocking_mutex.run_if_first_or_schedule_on_first(task);
 }
 
-// todo
-// fn increment_once_under_non_blocking_mutex_dynamic(
-//     non_blocking_mutex: &DynamicNonBlockingMutex<usize>,
-// ) {
-//     non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|mut state: MutexGuard<usize>| {
-//         *state += 1;
-//         black_box(state);
-//     });
-// }
+fn increment_once_under_non_blocking_mutex_dynamic(
+    non_blocking_mutex: &DynamicNonBlockingMutex<usize>,
+) {
+    non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|mut state: MutexGuard<usize>| {
+        *state += 1;
+        black_box(state);
+    });
+}
 
 fn increment_once_under_mutex_blockingly(number_mutex: &Mutex<usize>) {
     let mut number = number_mutex.lock().unwrap();
@@ -76,35 +76,34 @@ fn increment_under_non_blocking_mutex_concurrently_static(
     });
 }
 
-// todo
-// fn increment_under_non_blocking_mutex_concurrently_dynamic(
-//     max_concurrent_thread_count: usize,
-//     operation_count: usize,
-//     spin_under_lock_count: usize,
-// ) {
-//     let non_blocking_mutex = DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0);
-//
-//     scope(|scope| {
-//         for _ in 0..max_concurrent_thread_count {
-//             scope.spawn(|| {
-//                 for _i in 0..operation_count {
-//                     non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(
-//                         move |mut state| {
-//                             *state += 1;
-//                             black_box(*state);
-//
-//                             let mut spin_under_lock_count_left = spin_under_lock_count;
-//                             while spin_under_lock_count_left != 0 {
-//                                 hint::spin_loop();
-//                                 spin_under_lock_count_left -= 1;
-//                             }
-//                         },
-//                     )
-//                 }
-//             });
-//         }
-//     });
-// }
+fn increment_under_non_blocking_mutex_concurrently_dynamic(
+    max_concurrent_thread_count: usize,
+    operation_count: usize,
+    spin_under_lock_count: usize,
+) {
+    let non_blocking_mutex = DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0);
+
+    scope(|scope| {
+        for _ in 0..max_concurrent_thread_count {
+            scope.spawn(|| {
+                for _i in 0..operation_count {
+                    non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(
+                        move |mut state| {
+                            *state += 1;
+                            black_box(*state);
+
+                            let mut spin_under_lock_count_left = spin_under_lock_count;
+                            while spin_under_lock_count_left != 0 {
+                                hint::spin_loop();
+                                spin_under_lock_count_left -= 1;
+                            }
+                        },
+                    )
+                }
+            });
+        }
+    });
+}
 
 fn increment_under_mutex_blockingly_concurrently(
     max_concurrent_thread_count: usize,
@@ -179,13 +178,12 @@ fn criterion_benchmark(criterion: &mut Criterion) {
                 increment_under_non_blocking_mutex_concurrently_static
             )),
         },
-        // todo
-        // BenchFnAndName {
-        //     bench_fn: increment_under_non_blocking_mutex_concurrently_dynamic,
-        //     bench_fn_name: String::from(name_of!(
-        //         increment_under_non_blocking_mutex_concurrently_dynamic
-        //     )),
-        // },
+        BenchFnAndName {
+            bench_fn: increment_under_non_blocking_mutex_concurrently_dynamic,
+            bench_fn_name: String::from(name_of!(
+                increment_under_non_blocking_mutex_concurrently_dynamic
+            )),
+        },
         BenchFnAndName {
             bench_fn: increment_under_mutex_blockingly_concurrently,
             bench_fn_name: String::from(name_of!(increment_under_mutex_blockingly_concurrently)),
