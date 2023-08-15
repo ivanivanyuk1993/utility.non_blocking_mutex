@@ -66,13 +66,13 @@
 //             /// Note that if [`fetch_sub`] != 1
 //             /// => some thread entered first if block in method
 //             /// => [ShardedQueue::push_back] is guaranteed to be called
-//             /// => [ShardedQueue::pop_front_or_spin] will not deadlock while spins until it gets item
+//             /// => [ShardedQueue::pop_front_or_spin_wait_item] will not deadlock while spins until it gets item
 //             ///
 //             /// Notice that we run action first, and only then decrement count
 //             /// with releasing(pushing) memory changes, even if it looks otherwise
 //             while self.task_count.fetch_sub(1, Ordering::Release) != 1 {
 //                 self.task_queue
-//                     .pop_front_or_spin()
+//                     .pop_front_or_spin_wait_item()
 //                     .run_with_state(unsafe { MutexGuard::new(&self.unsafe_state) });
 //             }
 //         }

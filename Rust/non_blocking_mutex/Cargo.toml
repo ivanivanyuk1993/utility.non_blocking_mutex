@@ -14,7 +14,7 @@ edition = "2021"
 
 [dependencies]
 crossbeam-utils = "0.8.16"
-sharded_queue = "1"
+sharded_queue = "2"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
