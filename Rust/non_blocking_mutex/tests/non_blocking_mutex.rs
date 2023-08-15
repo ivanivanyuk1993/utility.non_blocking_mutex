@@ -1,6 +1,7 @@
 use non_blocking_mutex::mutex_guard::MutexGuard;
 use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 use non_blocking_mutex::non_blocking_mutex_task::NonBlockingMutexTask;
+use std::mem::size_of;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread::{available_parallelism, scope};
@@ -637,4 +638,23 @@ fn run_count_is_expected() {
 
     // Check that the action counter is equal to the expected state
     assert_eq!(expected_state, task_counter.load(Ordering::Relaxed));
+}
+
+#[test]
+fn task_without_captured_variables_should_be_zero_sized() {
+    struct TaskWithoutCapturedVariables {}
+
+    impl NonBlockingMutexTask<usize> for TaskWithoutCapturedVariables {
+        fn run_with_state(self, mut state: MutexGuard<usize>) {
+            *state += 1;
+        }
+    }
+
+    let max_concurrent_thread_count = available_parallelism().unwrap().get();
+
+    let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+
+    non_blocking_mutex.run_if_first_or_schedule_on_first(TaskWithoutCapturedVariables {});
+
+    assert_eq!(size_of::<TaskWithoutCapturedVariables>(), 0);
 }

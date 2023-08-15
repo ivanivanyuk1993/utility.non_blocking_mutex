@@ -1,4 +1,6 @@
 use non_blocking_mutex::dynamic_non_blocking_mutex::DynamicNonBlockingMutex;
+use non_blocking_mutex::dynamic_non_blocking_mutex_task::DynamicNonBlockingMutexTask;
+use std::mem::size_of;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{available_parallelism, scope};
@@ -324,4 +326,19 @@ fn run_count_is_expected() {
 
     // Check that the action counter is equal to the expected state
     assert_eq!(expected_state, task_counter.load(Ordering::Relaxed));
+}
+
+#[test]
+fn dynamic_non_blocking_mutex_task_should_have_size_of_boxed_dyn_fn_once() {
+    let max_concurrent_thread_count = available_parallelism().unwrap().get();
+
+    let non_blocking_mutex = DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0);
+
+    non_blocking_mutex
+        .run_if_first_or_schedule_on_first(DynamicNonBlockingMutexTask::from_fn_once_impl(|_| {}));
+
+    assert_eq!(
+        size_of::<DynamicNonBlockingMutexTask<usize>>(),
+        size_of::<Box<dyn FnOnce()>>()
+    );
 }
