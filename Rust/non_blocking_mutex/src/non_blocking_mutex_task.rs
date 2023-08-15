@@ -18,7 +18,7 @@ pub trait NonBlockingMutexTask<State: ?Sized>: Send {
     fn run_with_state(self, state: MutexGuard<State>);
 }
 
-impl<State: ?Sized, TFnOnce: FnOnce(MutexGuard<State>) + Send + Sized> NonBlockingMutexTask<State>
+impl<State: ?Sized, TFnOnce: FnOnce(MutexGuard<State>) + Send> NonBlockingMutexTask<State>
     for TFnOnce
 {
     fn run_with_state(self, state: MutexGuard<State>) {
