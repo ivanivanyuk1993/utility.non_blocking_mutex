@@ -1,9 +1,9 @@
 use non_blocking_mutex::mutex_guard::MutexGuard;
+use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 use non_blocking_mutex::non_blocking_mutex_task::NonBlockingMutexTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread::{available_parallelism, scope};
-use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 
 #[test]
 fn can_use_Fn() {

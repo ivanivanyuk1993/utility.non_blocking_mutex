@@ -5,10 +5,10 @@ use sharded_queue::ShardedQueue;
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask>
-where
-    for<'unsafe_state_ref> TNonBlockingMutexTask: NonBlockingMutexTask<'unsafe_state_ref, State>,
-{
+pub struct NonBlockingMutex<
+    State: ?Sized,
+    TNonBlockingMutexTask: for<'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, State>,
+> {
     task_count: CachePadded<AtomicUsize>,
     task_queue: ShardedQueue<TNonBlockingMutexTask>,
     unsafe_state: UnsafeCell<State>,
@@ -85,9 +85,10 @@ where
 /// (because we have more CPU-s or because we want to do expensive
 /// calculations under lock), [NonBlockingMutex] performs better
 /// than [std::sync::Mutex]
-impl<State, TNonBlockingMutexTask> NonBlockingMutex<State, TNonBlockingMutexTask>
-where
-    for<'unsafe_state_ref> TNonBlockingMutexTask: NonBlockingMutexTask<'unsafe_state_ref, State>,
+impl<
+        State,
+        TNonBlockingMutexTask: for<'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, State>,
+    > NonBlockingMutex<State, TNonBlockingMutexTask>
 {
     /// # Arguments
     ///
@@ -127,16 +128,16 @@ where
 }
 
 /// [Send] and [Sync] logic was taken from [std::sync::Mutex]
-unsafe impl<State: ?Sized + Send, TNonBlockingMutexTask> Send
-    for NonBlockingMutex<State, TNonBlockingMutexTask>
-where
-    for<'unsafe_state_ref> TNonBlockingMutexTask: NonBlockingMutexTask<'unsafe_state_ref, State>,
+unsafe impl<
+        State: ?Sized + Send,
+        TNonBlockingMutexTask: for<'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, State>,
+    > Send for NonBlockingMutex<State, TNonBlockingMutexTask>
 {
 }
-unsafe impl<State: ?Sized + Send, TNonBlockingMutexTask> Sync
-    for NonBlockingMutex<State, TNonBlockingMutexTask>
-where
-    for<'unsafe_state_ref> TNonBlockingMutexTask: NonBlockingMutexTask<'unsafe_state_ref, State>,
+unsafe impl<
+        State: ?Sized + Send,
+        TNonBlockingMutexTask: for<'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, State>,
+    > Sync for NonBlockingMutex<State, TNonBlockingMutexTask>
 {
 }
 
