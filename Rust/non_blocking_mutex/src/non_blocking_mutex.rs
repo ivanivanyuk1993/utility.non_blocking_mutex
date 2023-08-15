@@ -1,54 +1,98 @@
-use crate::sized_task_with_static_dispatch::SizedTaskWithStaticDispatch;
-use crate::MutexGuard;
+use crate::mutex_guard::MutexGuard;
+use crate::non_blocking_mutex_task::NonBlockingMutexTask;
+use crossbeam_utils::CachePadded;
 use sharded_queue::ShardedQueue;
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crossbeam_utils::CachePadded;
 
-pub struct NonBlockingMutexForSizedTaskWithStaticDispatch<
-    State: ?Sized,
-    TSizedTaskWithStaticDispatch,
-> where
-    for<'unsafe_state_ref> TSizedTaskWithStaticDispatch:
-        SizedTaskWithStaticDispatch<'unsafe_state_ref, State>,
+pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask>
+where
+    for<'unsafe_state_ref> TNonBlockingMutexTask: NonBlockingMutexTask<'unsafe_state_ref, State>,
 {
     task_count: CachePadded<AtomicUsize>,
-    task_queue: ShardedQueue<TSizedTaskWithStaticDispatch>,
+    task_queue: ShardedQueue<TNonBlockingMutexTask>,
     unsafe_state: UnsafeCell<State>,
 }
 
-/// # [NonBlockingMutexForSizedTaskWithStaticDispatch]
+/// # [NonBlockingMutex]
 ///
-/// Unlike [crate::NonBlockingMutex], [NonBlockingMutexForSizedTaskWithStaticDispatch]
-/// allows to not use dynamic dispatch or [Box] tasks
+/// ## Why you should use [NonBlockingMutex]
+///
+/// [NonBlockingMutex] is currently the fastest way to do
+/// expensive calculations under lock, or do cheap calculations
+/// under lock when concurrency/load/contention is very high -
+/// see benchmarks in directory `benches` and run them with
+/// ```bash
+/// cargo bench
+/// ```
 ///
 /// ## Example
 /// ```rust
-/// use non_blocking_mutex::mutex_guard::MutexGuard;
-/// use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
 /// use std::thread::{available_parallelism};
+/// use non_blocking_mutex::mutex_guard::MutexGuard;
+/// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 ///
-/// /// How many threads can physically access [NonBlockingMutexForSizedTaskWithStaticDispatch]
+/// /// How many threads can physically access [NonBlockingMutex]
 /// /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
 /// /// used to store queue of tasks
 /// let max_concurrent_thread_count = available_parallelism().unwrap().get();
 ///
-/// let non_blocking_mutex = NonBlockingMutexForSizedTaskWithStaticDispatch::new(max_concurrent_thread_count, 0);
-/// non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state: MutexGuard<_>| {
+/// let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+/// non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state: MutexGuard<usize>| {
 ///     *state += 1;
 /// });
 /// ```
-impl<State, TSizedTaskWithStaticDispatch>
-    NonBlockingMutexForSizedTaskWithStaticDispatch<State, TSizedTaskWithStaticDispatch>
+///
+/// ## Why you may want to not use [NonBlockingMutex]
+///
+/// - [NonBlockingMutex] forces first thread to enter synchronized block to
+/// do all tasks(including added while it is running,
+/// potentially running forever if tasks are being added forever)
+///
+/// - It is more difficult to continue execution on same thread after
+/// synchronized logic is run, you need to schedule continuation on some
+/// scheduler when you want to continue after end of synchronized logic
+/// in new thread or introduce other synchronization primitives,
+/// like channels, or `WaitGroup`-s, or similar
+///
+/// - [NonBlockingMutex] performs worse than [std::sync::Mutex] when
+/// concurrency/load/contention is low
+///
+/// - Similar to [std::sync::Mutex], [NonBlockingMutex] doesn't guarantee
+/// order of execution, only atomicity of operations is guaranteed
+///
+/// ## Design explanation
+///
+/// First thread, which calls [NonBlockingMutex::run_if_first_or_schedule_on_first],
+/// atomically increments `task_count`, and,
+/// if thread was first to increment `task_count` from 0 to 1,
+/// first thread immediately executes first task,
+/// and then atomically decrements `task_count` and checks if `task_count`
+/// changed from 1 to 0. If `task_count` changed from 1 to 0 -
+/// there are no more tasks and first thread can finish execution loop,
+/// otherwise first thread gets next task from `task_queue` and runs task,
+/// then decrements tasks count after it was run and repeats check if
+/// `task_count` changed from 1 to 0 and running tasks until there are no more tasks left.
+///
+/// Not first threads also atomically increment `task_count`,
+/// do check if they are first, [Box] task and push task [Box] to `task_queue`
+///
+/// This design allows us to avoid lock contention, but adds ~constant time
+/// of [Box]-ing task and putting task [Box] into concurrent `task_queue`, and
+/// incrementing and decrementing `task_count`, so when lock contention is low,
+/// [NonBlockingMutex] performs worse than [std::sync::Mutex],
+/// but when contention is high
+/// (because we have more CPU-s or because we want to do expensive
+/// calculations under lock), [NonBlockingMutex] performs better
+/// than [std::sync::Mutex]
+impl<State, TNonBlockingMutexTask> NonBlockingMutex<State, TNonBlockingMutexTask>
 where
-    for<'unsafe_state_ref> TSizedTaskWithStaticDispatch:
-        SizedTaskWithStaticDispatch<'unsafe_state_ref, State>,
+    for<'unsafe_state_ref> TNonBlockingMutexTask: NonBlockingMutexTask<'unsafe_state_ref, State>,
 {
     /// # Arguments
     ///
     /// * `max_concurrent_thread_count` - how many threads can physically access
-    /// [NonBlockingMutexForSizedTaskWithStaticDispatch]
-    /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+    /// [NonBlockingMutex] simultaneously, needed for computing `shard_count` of [ShardedQueue],
     /// used to store queue of tasks
     pub fn new(max_concurrent_thread_count: usize, state: State) -> Self {
         Self {
@@ -60,7 +104,7 @@ where
 
     /// Please don't forget that order of execution is not guaranteed. Atomicity of operations is guaranteed,
     /// but order can be random
-    pub fn run_if_first_or_schedule_on_first(&self, task: TSizedTaskWithStaticDispatch) {
+    pub fn run_if_first_or_schedule_on_first(&self, task: TNonBlockingMutexTask) {
         if self.task_count.fetch_add(1, Ordering::Acquire) != 0 {
             self.task_queue.push_back(task);
         } else {
@@ -82,38 +126,21 @@ where
     }
 }
 
-/// [Send], [Sync], and [MutexGuard] logic was taken from [std::sync::Mutex]
-/// and [std::sync::MutexGuard]
-///
-/// these are the only places where `T: Send` matters; all other
-/// functionality works fine on a single thread.
-unsafe impl<State: ?Sized + Send, TSizedTaskWithStaticDispatch> Send
-    for NonBlockingMutexForSizedTaskWithStaticDispatch<State, TSizedTaskWithStaticDispatch>
+/// [Send] and [Sync] logic was taken from [std::sync::Mutex]
+unsafe impl<State: ?Sized + Send, TNonBlockingMutexTask> Send
+    for NonBlockingMutex<State, TNonBlockingMutexTask>
 where
-    for<'unsafe_state_ref> TSizedTaskWithStaticDispatch:
-        SizedTaskWithStaticDispatch<'unsafe_state_ref, State>,
+    for<'unsafe_state_ref> TNonBlockingMutexTask: NonBlockingMutexTask<'unsafe_state_ref, State>,
 {
 }
-unsafe impl<State: ?Sized + Send, TSizedTaskWithStaticDispatch> Sync
-    for NonBlockingMutexForSizedTaskWithStaticDispatch<State, TSizedTaskWithStaticDispatch>
+unsafe impl<State: ?Sized + Send, TNonBlockingMutexTask> Sync
+    for NonBlockingMutex<State, TNonBlockingMutexTask>
 where
-    for<'unsafe_state_ref> TSizedTaskWithStaticDispatch:
-        SizedTaskWithStaticDispatch<'unsafe_state_ref, State>,
+    for<'unsafe_state_ref> TNonBlockingMutexTask: NonBlockingMutexTask<'unsafe_state_ref, State>,
 {
 }
 
-impl<
-        'unsafe_state_ref,
-        State: ?Sized + 'unsafe_state_ref,
-        TFnOnce: FnOnce(MutexGuard<'unsafe_state_ref, State>) + Send + Sized,
-    > SizedTaskWithStaticDispatch<'unsafe_state_ref, State> for TFnOnce
-{
-    fn run_with_state(self, state: MutexGuard<'unsafe_state_ref, State>) {
-        self(state);
-    }
-}
-
-/// [NonBlockingMutexForSizedTaskWithStaticDispatch] should implement [Send] and [Sync] in same
+/// [NonBlockingMutex] should implement [Send] and [Sync] in same
 /// cases as [std::sync::Mutex]
 ///
 /// ```rust
@@ -127,12 +154,11 @@ impl<
 /// ```
 /// ```rust
 /// use non_blocking_mutex::mutex_guard::MutexGuard;
-/// use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
-///
+/// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 /// fn is_send<T: Send>(t: T) {}
 ///
 /// let send_sync = 0;
-/// let non_blocking_mutex = NonBlockingMutexForSizedTaskWithStaticDispatch::new(1, send_sync);
+/// let non_blocking_mutex = NonBlockingMutex::new(1, send_sync);
 /// non_blocking_mutex.run_if_first_or_schedule_on_first(|_: MutexGuard<_>| {});
 ///
 /// is_send(non_blocking_mutex);
@@ -149,12 +175,12 @@ impl<
 /// ```
 /// ```rust
 /// use non_blocking_mutex::mutex_guard::MutexGuard;
-/// use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
+/// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 ///
 /// fn is_sync<T: Sync>(t: T) {}
 ///
 /// let send_sync = 0;
-/// let non_blocking_mutex = NonBlockingMutexForSizedTaskWithStaticDispatch::new(1, send_sync);
+/// let non_blocking_mutex = NonBlockingMutex::new(1, send_sync);
 /// non_blocking_mutex.run_if_first_or_schedule_on_first(|_: MutexGuard<_>| {});
 ///
 /// is_sync(non_blocking_mutex);
@@ -195,12 +221,12 @@ impl<
 /// ```rust
 /// use std::cell::Cell;
 /// use non_blocking_mutex::mutex_guard::MutexGuard;
-/// use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
+/// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 ///
 /// fn is_send<T: Send>(t: T) {}
 ///
 /// let send_not_sync = Cell::new(0);
-/// let non_blocking_mutex = NonBlockingMutexForSizedTaskWithStaticDispatch::new(1, send_not_sync);
+/// let non_blocking_mutex = NonBlockingMutex::new(1, send_not_sync);
 /// non_blocking_mutex.run_if_first_or_schedule_on_first(|_: MutexGuard<_>| {});
 ///
 /// is_send(non_blocking_mutex);
@@ -219,12 +245,12 @@ impl<
 /// ```rust
 /// use std::cell::Cell;
 /// use non_blocking_mutex::mutex_guard::MutexGuard;
-/// use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
+/// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 ///
 /// fn is_sync<T: Sync>(t: T) {}
 ///
 /// let send_not_sync = Cell::new(0);
-/// let non_blocking_mutex = NonBlockingMutexForSizedTaskWithStaticDispatch::new(1, send_not_sync);
+/// let non_blocking_mutex = NonBlockingMutex::new(1, send_not_sync);
 /// non_blocking_mutex.run_if_first_or_schedule_on_first(|_: MutexGuard<_>| {});
 ///
 /// is_sync(non_blocking_mutex);
@@ -280,7 +306,7 @@ impl<
 /// ```compile_fail
 /// use std::marker::PhantomData;
 /// use non_blocking_mutex::mutex_guard::MutexGuard;
-/// use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
+/// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 ///
 /// fn is_send<T: Send>(t: T) {}
 ///
@@ -292,7 +318,7 @@ impl<
 /// let not_send_sync = NotSendSync::<usize> {
 ///     _phantom_unsend: PhantomData,
 /// };
-/// let non_blocking_mutex = NonBlockingMutexForSizedTaskWithStaticDispatch::new(1, not_send_sync);
+/// let non_blocking_mutex = NonBlockingMutex::new(1, not_send_sync);
 /// non_blocking_mutex.run_if_first_or_schedule_on_first(|_: MutexGuard<_>| {});
 ///
 /// is_send(non_blocking_mutex);
@@ -318,7 +344,7 @@ impl<
 /// ```compile_fail
 /// use std::marker::PhantomData;
 /// use non_blocking_mutex::mutex_guard::MutexGuard;
-/// use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
+/// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 ///
 /// fn is_sync<T: Sync>(t: T) {}
 ///
@@ -330,7 +356,7 @@ impl<
 /// let not_send_sync = NotSendSync::<usize> {
 ///     _phantom_unsend: PhantomData,
 /// };
-/// let non_blocking_mutex = NonBlockingMutexForSizedTaskWithStaticDispatch::new(1, not_send_sync);
+/// let non_blocking_mutex = NonBlockingMutex::new(1, not_send_sync);
 /// non_blocking_mutex.run_if_first_or_schedule_on_first(|_: MutexGuard<_>| {});
 ///
 /// is_sync(non_blocking_mutex);
@@ -376,13 +402,13 @@ impl<
 /// ```
 /// ```compile_fail
 /// use non_blocking_mutex::mutex_guard::MutexGuard;
-/// use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
+/// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 ///
 /// fn is_send<T: Send>(t: T) {}
 ///
 /// let t = 0;
 /// let not_send_not_sync = &t as *const usize;
-/// let non_blocking_mutex = NonBlockingMutexForSizedTaskWithStaticDispatch::new(1, not_send_not_sync);
+/// let non_blocking_mutex = NonBlockingMutex::new(1, not_send_not_sync);
 /// non_blocking_mutex.run_if_first_or_schedule_on_first(|_: MutexGuard<_>| {});
 ///
 /// is_send(non_blocking_mutex);
@@ -412,15 +438,15 @@ impl<
 /// ```compile_fail
 /// use std::sync::Mutex;
 /// use non_blocking_mutex::mutex_guard::MutexGuard;
-/// use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
+/// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 ///
 /// fn is_sync<T: Sync>(t: T) {}
 ///
 /// let t = 0;
 /// let not_send_not_sync = &t as *const usize;
-/// let non_blocking_mutex = NonBlockingMutexForSizedTaskWithStaticDispatch::new(1, not_send_not_sync);
+/// let non_blocking_mutex = NonBlockingMutex::new(1, not_send_not_sync);
 /// non_blocking_mutex.run_if_first_or_schedule_on_first(|_: MutexGuard<_>| {});
 ///
 /// is_sync(non_blocking_mutex);
 /// ```
-struct NonBlockingMutexForSizedTaskWithStaticDispatchSendSyncImplementationDocTests {}
+struct NonBlockingMutexSendSyncImplementationDocTests {}

@@ -2,7 +2,7 @@
 
 [<img alt="github" src="https://img.shields.io/badge/github-non_blocking_mutex-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/ivanivanyuk1993/utility.non_blocking_mutex)
 [<img alt="crates.io" src="https://img.shields.io/crates/v/non_blocking_mutex.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/non_blocking_mutex)
-[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-non_blocking_mutex-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/non_blocking_mutex/latest/non_blocking_mutex/struct.NonBlockingMutex.html#nonblockingmutex)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-non_blocking_mutex-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/non_blocking_mutex/latest/non_blocking_mutex/)
 [![Build and test Rust](https://github.com/ivanivanyuk1993/utility.non_blocking_mutex/actions/workflows/rust.yml/badge.svg)](https://github.com/ivanivanyuk1993/utility.non_blocking_mutex/actions/workflows/rust.yml)
 
 ## Why you should use `NonBlockingMutex`
@@ -22,17 +22,18 @@ cargo add non_blocking_mutex
 ```
 
 ## Example
-```rust
-use non_blocking_mutex::NonBlockingMutex;
+ ```rust
 use std::thread::{available_parallelism};
+use non_blocking_mutex::mutex_guard::MutexGuard;
+use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 
-/// How many threads can physically access [NonBlockingMutexForSizedTaskWithStaticDispatch]
+/// How many threads can physically access [NonBlockingMutex]
 /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
 /// used to store queue of tasks
 let max_concurrent_thread_count = available_parallelism().unwrap().get();
 
 let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
-non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state| {
+non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state: MutexGuard<usize>| {
     *state += 1;
 });
 ```
