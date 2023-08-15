@@ -23,7 +23,8 @@ pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask: NonBlockingMut
 /// cargo bench
 /// ```
 ///
-/// ## Example
+/// ## Examples
+/// ### Optimized for 1 type of [NonBlockingMutexTask]
 /// ```rust
 /// use std::thread::{available_parallelism};
 /// use non_blocking_mutex::mutex_guard::MutexGuard;
@@ -35,9 +36,131 @@ pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask: NonBlockingMut
 /// let max_concurrent_thread_count = available_parallelism().unwrap().get();
 ///
 /// let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+/// /// Will infer exact type and size(0) of this [FnOnce] and
+/// /// make sized [NonBlockingMutex] which takes only this exact [FnOnce]
+/// /// without ever requiring [Box]-ing or dynamic dispatch
 /// non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state: MutexGuard<usize>| {
 ///     *state += 1;
 /// });
+/// ```
+///
+/// ### Optimized for multiple known types of [NonBlockingMutexTask] which capture variables
+/// ```rust
+/// use std::thread::{available_parallelism, scope};
+/// use non_blocking_mutex::mutex_guard::MutexGuard;
+/// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
+/// use non_blocking_mutex::non_blocking_mutex_task::NonBlockingMutexTask;
+///
+/// /// How many threads can physically access [NonBlockingMutex]
+/// /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+/// /// used to store queue of tasks
+/// let max_concurrent_thread_count = available_parallelism().unwrap().get();
+///
+/// struct SnapshotsBeforeAndAfterChangeRefs<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
+///     /// Where to write snapshot of `State` before applying function to `State`
+///     snapshot_before_change_ref: &'snapshot_before_change_ref mut usize,
+///     /// Where to write snapshot of `State` after applying function to `State
+///     snapshot_after_change_ref: &'snapshot_after_change_ref mut usize,
+/// }
+///
+/// enum TaskType<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
+///     IncrementAndStoreSnapshots(SnapshotsBeforeAndAfterChangeRefs<'snapshot_before_change_ref, 'snapshot_after_change_ref>),
+///     DecrementAndStoreSnapshots(SnapshotsBeforeAndAfterChangeRefs<'snapshot_before_change_ref, 'snapshot_after_change_ref>),
+/// }
+///
+/// struct Task<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
+///     task_type: TaskType<'snapshot_before_change_ref, 'snapshot_after_change_ref>,
+/// }
+///
+/// impl<'snapshot_before_change_ref, 'snapshot_after_change_ref> Task<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
+///     fn new_increment_and_store_snapshots(
+///         // Where to write snapshot of `State` before applying function to `State`
+///         snapshot_before_change_ref: &'snapshot_before_change_ref mut usize,
+///         // Where to write snapshot of `State` after applying function to `State
+///         snapshot_after_change_ref: &'snapshot_after_change_ref mut usize,
+///     ) -> Self {
+///         Self {
+///             task_type: TaskType::IncrementAndStoreSnapshots(
+///                 SnapshotsBeforeAndAfterChangeRefs {
+///                     /// Where to write snapshot of `State` before applying function to `State`
+///                     snapshot_before_change_ref,
+///                     /// Where to write snapshot of `State` after applying function to `State
+///                     snapshot_after_change_ref,
+///                 }
+///             )
+///         }
+///     }
+///
+///     fn new_decrement_and_store_snapshots(
+///         // Where to write snapshot of `State` before applying function to `State`
+///         snapshot_before_change_ref: &'snapshot_before_change_ref mut usize,
+///         // Where to write snapshot of `State` after applying function to `State
+///         snapshot_after_change_ref: &'snapshot_after_change_ref mut usize,
+///     ) -> Self {
+///         Self {
+///             task_type: TaskType::DecrementAndStoreSnapshots(
+///                 SnapshotsBeforeAndAfterChangeRefs {
+///                     /// Where to write snapshot of `State` before applying function to `State`
+///                     snapshot_before_change_ref,
+///                     /// Where to write snapshot of `State` after applying function to `State
+///                     snapshot_after_change_ref,
+///                 }
+///             )
+///         }
+///     }
+/// }
+///
+/// impl<'snapshot_before_change_ref, 'snapshot_after_change_ref> NonBlockingMutexTask<usize> for Task<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
+///     fn run_with_state(self, mut state: MutexGuard<usize>) {
+///         match self.task_type {
+///             TaskType::IncrementAndStoreSnapshots(SnapshotsBeforeAndAfterChangeRefs {
+///                 snapshot_before_change_ref,
+///                 snapshot_after_change_ref,
+///             }) => {
+///                 *snapshot_before_change_ref = *state;
+///                 *state += 1;
+///                 *snapshot_after_change_ref = *state;
+///             }
+///             TaskType::DecrementAndStoreSnapshots(SnapshotsBeforeAndAfterChangeRefs {
+///                 snapshot_before_change_ref,
+///                 snapshot_after_change_ref,
+///             }) => {
+///                 *snapshot_before_change_ref = *state;
+///                 *state -= 1;
+///                 *snapshot_after_change_ref = *state;
+///             }
+///         }
+///     }
+/// }
+///
+/// let mut state_snapshot_before_increment = 0;
+/// let mut state_snapshot_after_increment = 0;
+///
+/// let mut state_snapshot_before_decrement = 0;
+/// let mut state_snapshot_after_decrement = 0;
+///
+/// /// Will infer exact type and size of struct [Task] and
+/// /// make sized [NonBlockingMutex] which takes only [Task]
+/// /// without ever requiring [Box]-ing or dynamic dispatch
+/// let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+/// scope(|scope| {
+///     scope.spawn(|| {
+///         non_blocking_mutex.run_if_first_or_schedule_on_first(Task::new_increment_and_store_snapshots(
+///             &mut state_snapshot_before_increment,
+///             &mut state_snapshot_after_increment,
+///         ));
+///         non_blocking_mutex.run_if_first_or_schedule_on_first(Task::new_decrement_and_store_snapshots(
+///             &mut state_snapshot_before_decrement,
+///             &mut state_snapshot_after_decrement,
+///         ));
+///     });
+/// });
+///
+/// assert_eq!(state_snapshot_before_increment, 0);
+/// assert_eq!(state_snapshot_after_increment, 1);
+///
+/// assert_eq!(state_snapshot_before_decrement, 1);
+/// assert_eq!(state_snapshot_after_decrement, 0);
 /// ```
 ///
 /// ## Why you may want to not use [NonBlockingMutex]
