@@ -69,10 +69,10 @@ fn can_use_Fn_recursively() {
         increment(&mut count);
         increment(&mut count);
 
-        non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state_count| {
+        non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|mut state_count| {
             increment(&mut state_count);
             increment(&mut state_count);
-            non_blocking_mutex_arc_clone.run_if_first_or_schedule_on_first(|mut state_count_2| {
+            non_blocking_mutex_arc_clone.run_fn_once_if_first_or_schedule_on_first(|mut state_count_2| {
                 increment(&mut state_count_2);
                 increment(&mut state_count_2);
                 state_1 = *state_count_2;
@@ -80,10 +80,10 @@ fn can_use_Fn_recursively() {
             drop(non_blocking_mutex_arc_clone);
         });
 
-        non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state_count| {
+        non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|mut state_count| {
             increment(&mut state_count);
             increment(&mut state_count);
-            non_blocking_mutex_arc_clone_2.run_if_first_or_schedule_on_first(
+            non_blocking_mutex_arc_clone_2.run_fn_once_if_first_or_schedule_on_first(
                 |mut state_count_2| {
                     increment(&mut state_count_2);
                     increment(&mut state_count_2);
@@ -93,7 +93,7 @@ fn can_use_Fn_recursively() {
             drop(non_blocking_mutex_arc_clone_2);
         });
 
-        non_blocking_mutex.run_if_first_or_schedule_on_first(|state_count| {
+        non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|state_count| {
             last_state = *state_count;
         });
     }
@@ -130,7 +130,7 @@ fn can_use_FnMut() {
             increment(&mut state_count);
         });
 
-        non_blocking_mutex.run_if_first_or_schedule_on_first(|state_count| {
+        non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|state_count| {
             last_state = *state_count;
         });
     }
@@ -175,7 +175,7 @@ fn can_use_FnMut_recursively() {
             drop(non_blocking_mutex_arc_clone);
         });
 
-        non_blocking_mutex.run_if_first_or_schedule_on_first(|state_count| {
+        non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|state_count| {
             last_state = *state_count;
         });
     }
@@ -196,7 +196,7 @@ fn small_state_is_expected() {
         for _ in 0..max_concurrent_thread_count {
             scope.spawn(move || {
                 for _i in 0..operation_count {
-                    non_blocking_mutex_ref.run_if_first_or_schedule_on_first(|mut state| {
+                    non_blocking_mutex_ref.run_fn_once_if_first_or_schedule_on_first(|mut state| {
                         *state += 1;
                     });
                 }
@@ -207,7 +207,7 @@ fn small_state_is_expected() {
     let expected_state = operation_count * max_concurrent_thread_count;
     let actual_state_arc = Arc::new(AtomicUsize::new(0));
     let actual_state_arc_clone = actual_state_arc.clone();
-    non_blocking_mutex.run_if_first_or_schedule_on_first(move |state| {
+    non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(move |state| {
         actual_state_arc_clone.store(*state, Ordering::Relaxed);
     });
 
@@ -267,7 +267,7 @@ fn big_state_is_expected() {
         d: 0,
     }));
     let actual_state_mutex_arc_clone = actual_state_mutex_arc.clone();
-    non_blocking_mutex.run_if_first_or_schedule_on_first(move |state| {
+    non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(move |state| {
         let mut actual_state = actual_state_mutex_arc_clone.lock().unwrap();
         *actual_state = *state;
     });
@@ -293,7 +293,7 @@ fn run_count_is_expected() {
             scope.spawn(move || {
                 for _i in 0..operation_count {
                     let task_counter_clone_clone = task_counter_clone.clone();
-                    non_blocking_mutex_ref.run_if_first_or_schedule_on_first(move |mut state| {
+                    non_blocking_mutex_ref.run_fn_once_if_first_or_schedule_on_first(move |mut state| {
                         // Increment the state and the action counter atomically
                         *state += 1;
                         task_counter_clone_clone.fetch_add(1, Ordering::Relaxed);
@@ -311,7 +311,7 @@ fn run_count_is_expected() {
     let expected_state = operation_count * max_concurrent_thread_count;
     let actual_state_arc = Arc::new(AtomicUsize::new(0));
     let actual_state_arc_clone = actual_state_arc.clone();
-    non_blocking_mutex_ref.run_if_first_or_schedule_on_first(move |state| {
+    non_blocking_mutex_ref.run_fn_once_if_first_or_schedule_on_first(move |state| {
         actual_state_arc_clone.store(*state, Ordering::Relaxed);
     });
     assert_eq!(expected_state, actual_state_arc.load(Ordering::Relaxed));

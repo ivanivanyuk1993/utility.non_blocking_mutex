@@ -4,19 +4,15 @@ use crate::non_blocking_mutex::NonBlockingMutex;
 use crate::non_blocking_mutex_task::NonBlockingMutexTask;
 use std::sync::atomic::Ordering;
 
-pub type DynamicNonBlockingMutex<'captured_variables, 'unsafe_state_ref, State> = NonBlockingMutex<
-    State,
-    DynamicNonBlockingMutexTask<'captured_variables, 'unsafe_state_ref, State>,
->;
+pub type DynamicNonBlockingMutex<'captured_variables, State> =
+    NonBlockingMutex<State, DynamicNonBlockingMutexTask<'captured_variables, State>>;
 
-impl<'captured_variables, 'unsafe_state_ref, State>
-    DynamicNonBlockingMutex<'captured_variables, 'unsafe_state_ref, State>
-{
+impl<'captured_variables, State> DynamicNonBlockingMutex<'captured_variables, State> {
     /// Please don't forget that order of execution is not guaranteed. Atomicity of operations is guaranteed,
     /// but order can be random
     pub fn run_fn_once_if_first_or_schedule_on_first(
         &self,
-        run_with_state: impl FnOnce(MutexGuard<'unsafe_state_ref, State>) + Send + 'captured_variables,
+        run_with_state: impl FnOnce(MutexGuard<State>) + Send + 'captured_variables,
     ) {
         if self.task_count.fetch_add(1, Ordering::Acquire) != 0 {
             self.task_queue

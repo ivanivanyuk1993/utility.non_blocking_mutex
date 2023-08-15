@@ -5,10 +5,7 @@ use sharded_queue::ShardedQueue;
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-pub struct NonBlockingMutex<
-    State: ?Sized,
-    TNonBlockingMutexTask: for<'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, State>,
-> {
+pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask: NonBlockingMutexTask<State>> {
     pub(crate) task_count: CachePadded<AtomicUsize>,
     pub(crate) task_queue: ShardedQueue<TNonBlockingMutexTask>,
     pub(crate) unsafe_state: UnsafeCell<State>,
@@ -85,10 +82,8 @@ pub struct NonBlockingMutex<
 /// (because we have more CPU-s or because we want to do expensive
 /// calculations under lock), [NonBlockingMutex] performs better
 /// than [std::sync::Mutex]
-impl<
-        State,
-        TNonBlockingMutexTask: for<'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, State>,
-    > NonBlockingMutex<State, TNonBlockingMutexTask>
+impl<State, TNonBlockingMutexTask: NonBlockingMutexTask<State>>
+    NonBlockingMutex<State, TNonBlockingMutexTask>
 {
     /// # Arguments
     ///
@@ -128,16 +123,12 @@ impl<
 }
 
 /// [Send] and [Sync] logic was taken from [std::sync::Mutex]
-unsafe impl<
-        State: ?Sized + Send,
-        TNonBlockingMutexTask: for<'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, State>,
-    > Send for NonBlockingMutex<State, TNonBlockingMutexTask>
+unsafe impl<State: ?Sized + Send, TNonBlockingMutexTask: NonBlockingMutexTask<State>> Send
+    for NonBlockingMutex<State, TNonBlockingMutexTask>
 {
 }
-unsafe impl<
-        State: ?Sized + Send,
-        TNonBlockingMutexTask: for<'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, State>,
-    > Sync for NonBlockingMutex<State, TNonBlockingMutexTask>
+unsafe impl<State: ?Sized + Send, TNonBlockingMutexTask: NonBlockingMutexTask<State>> Sync
+    for NonBlockingMutex<State, TNonBlockingMutexTask>
 {
 }
 

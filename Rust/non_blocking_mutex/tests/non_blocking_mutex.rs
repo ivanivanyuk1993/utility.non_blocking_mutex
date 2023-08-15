@@ -49,10 +49,10 @@ fn can_use_Fn() {
             }
         }
 
-        impl<'last_state_ref, 'unsafe_state_ref, Increment: FnMut(&mut usize) + Send>
-            NonBlockingMutexTask<'unsafe_state_ref, usize> for Task<'last_state_ref, Increment>
+        impl<'last_state_ref, Increment: FnMut(&mut usize) + Send> NonBlockingMutexTask<usize>
+            for Task<'last_state_ref, Increment>
         {
-            fn run_with_state(self, mut state: MutexGuard<'unsafe_state_ref, usize>) -> () {
+            fn run_with_state(self, mut state: MutexGuard<usize>) -> () {
                 match self.task_args_enum {
                     TaskArgsEnum::Increment(mut increment) => {
                         increment(&mut state);
@@ -156,15 +156,10 @@ fn can_use_Fn_recursively() {
             }
         }
 
-        impl<
-                'last_state_ref,
-                'state_ref,
-                'unsafe_state_ref,
-                Increment: FnMut(&mut usize) + Send,
-            > NonBlockingMutexTask<'unsafe_state_ref, usize>
-            for Task<'last_state_ref, 'state_ref, Increment>
+        impl<'last_state_ref, 'state_ref, Increment: FnMut(&mut usize) + Send>
+            NonBlockingMutexTask<usize> for Task<'last_state_ref, 'state_ref, Increment>
         {
-            fn run_with_state(self, mut state: MutexGuard<'unsafe_state_ref, usize>) -> () {
+            fn run_with_state(self, mut state: MutexGuard<usize>) -> () {
                 match self.task_args_enum {
                     TaskArgsEnum::IncrementAndRunRecursion(
                         mut increment,
@@ -261,10 +256,10 @@ fn can_use_FnMut() {
             }
         }
 
-        impl<'last_state_ref, 'unsafe_state_ref, Increment: FnMut(&mut usize) + Send>
-            NonBlockingMutexTask<'unsafe_state_ref, usize> for Task<'last_state_ref, Increment>
+        impl<'last_state_ref, Increment: FnMut(&mut usize) + Send> NonBlockingMutexTask<usize>
+            for Task<'last_state_ref, Increment>
         {
-            fn run_with_state(self, mut state: MutexGuard<'unsafe_state_ref, usize>) -> () {
+            fn run_with_state(self, mut state: MutexGuard<usize>) -> () {
                 match self.task_args_enum {
                     TaskArgsEnum::Increment(mut increment) => {
                         increment(&mut state);
@@ -366,15 +361,10 @@ fn can_use_FnMut_recursively() {
             }
         }
 
-        impl<
-                'last_state_ref,
-                'state_ref,
-                'unsafe_state_ref,
-                Increment: FnMut(&mut usize) + Send,
-            > NonBlockingMutexTask<'unsafe_state_ref, usize>
-            for Task<'last_state_ref, 'state_ref, Increment>
+        impl<'last_state_ref, 'state_ref, Increment: FnMut(&mut usize) + Send>
+            NonBlockingMutexTask<usize> for Task<'last_state_ref, 'state_ref, Increment>
         {
-            fn run_with_state(self, mut state: MutexGuard<'unsafe_state_ref, usize>) -> () {
+            fn run_with_state(self, mut state: MutexGuard<usize>) -> () {
                 match self.task_args_enum {
                     TaskArgsEnum::IncrementAndRunRecursion(
                         mut increment,
@@ -448,10 +438,8 @@ fn small_state_is_expected() {
         }
     }
 
-    impl<'state_ref, 'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, usize>
-        for Task<'state_ref>
-    {
-        fn run_with_state(self, mut state: MutexGuard<'unsafe_state_ref, usize>) -> () {
+    impl<'state_ref> NonBlockingMutexTask<usize> for Task<'state_ref> {
+        fn run_with_state(self, mut state: MutexGuard<usize>) -> () {
             match self.task_args_enum {
                 TaskArgsEnum::Increment => {
                     *state += 1;
@@ -527,10 +515,8 @@ fn big_state_is_expected() {
         }
     }
 
-    impl<'state_ref, 'unsafe_state_ref> NonBlockingMutexTask<'unsafe_state_ref, BigState>
-        for Task<'state_ref>
-    {
-        fn run_with_state(self, mut state: MutexGuard<'unsafe_state_ref, BigState>) -> () {
+    impl<'state_ref> NonBlockingMutexTask<BigState> for Task<'state_ref> {
+        fn run_with_state(self, mut state: MutexGuard<BigState>) -> () {
             match self.task_args_enum {
                 TaskArgsEnum::Increment => {
                     state.a += 1;
@@ -604,10 +590,10 @@ fn run_count_is_expected() {
         }
     }
 
-    impl<'atomic_counter_ref, 'state_ref, 'unsafe_state_ref>
-        NonBlockingMutexTask<'unsafe_state_ref, usize> for Task<'atomic_counter_ref, 'state_ref>
+    impl<'atomic_counter_ref, 'state_ref> NonBlockingMutexTask<usize>
+        for Task<'atomic_counter_ref, 'state_ref>
     {
-        fn run_with_state(self, mut state: MutexGuard<'unsafe_state_ref, usize>) -> () {
+        fn run_with_state(self, mut state: MutexGuard<usize>) -> () {
             match self.task_args_enum {
                 TaskArgsEnum::Increment(atomic_counter) => {
                     // Increment the state and the action counter atomically
