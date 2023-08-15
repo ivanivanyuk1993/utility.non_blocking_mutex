@@ -72,11 +72,13 @@ fn can_use_Fn_recursively() {
         non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|mut state_count| {
             increment(&mut state_count);
             increment(&mut state_count);
-            non_blocking_mutex_arc_clone.run_fn_once_if_first_or_schedule_on_first(|mut state_count_2| {
-                increment(&mut state_count_2);
-                increment(&mut state_count_2);
-                state_1 = *state_count_2;
-            });
+            non_blocking_mutex_arc_clone.run_fn_once_if_first_or_schedule_on_first(
+                |mut state_count_2| {
+                    increment(&mut state_count_2);
+                    increment(&mut state_count_2);
+                    state_1 = *state_count_2;
+                },
+            );
             drop(non_blocking_mutex_arc_clone);
         });
 
@@ -196,9 +198,11 @@ fn small_state_is_expected() {
         for _ in 0..max_concurrent_thread_count {
             scope.spawn(move || {
                 for _i in 0..operation_count {
-                    non_blocking_mutex_ref.run_fn_once_if_first_or_schedule_on_first(|mut state| {
-                        *state += 1;
-                    });
+                    non_blocking_mutex_ref.run_fn_once_if_first_or_schedule_on_first(
+                        |mut state| {
+                            *state += 1;
+                        },
+                    );
                 }
             });
         }
@@ -293,15 +297,17 @@ fn run_count_is_expected() {
             scope.spawn(move || {
                 for _i in 0..operation_count {
                     let task_counter_clone_clone = task_counter_clone.clone();
-                    non_blocking_mutex_ref.run_fn_once_if_first_or_schedule_on_first(move |mut state| {
-                        // Increment the state and the action counter atomically
-                        *state += 1;
-                        task_counter_clone_clone.fetch_add(1, Ordering::Relaxed);
-                        if *state != task_counter_clone_clone.load(Ordering::Relaxed) {
-                            // If state is not expected, we decrement it to fail test later
-                            *state -= 1;
-                        }
-                    });
+                    non_blocking_mutex_ref.run_fn_once_if_first_or_schedule_on_first(
+                        move |mut state| {
+                            // Increment the state and the action counter atomically
+                            *state += 1;
+                            task_counter_clone_clone.fetch_add(1, Ordering::Relaxed);
+                            if *state != task_counter_clone_clone.load(Ordering::Relaxed) {
+                                // If state is not expected, we decrement it to fail test later
+                                *state -= 1;
+                            }
+                        },
+                    );
                 }
             });
         }
