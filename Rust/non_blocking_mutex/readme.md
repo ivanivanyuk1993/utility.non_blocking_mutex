@@ -2,7 +2,7 @@
 
 [<img alt="github" src="https://img.shields.io/badge/github-non_blocking_mutex-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/ivanivanyuk1993/utility.non_blocking_mutex)
 [<img alt="crates.io" src="https://img.shields.io/crates/v/non_blocking_mutex.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/non_blocking_mutex)
-[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-non_blocking_mutex-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/non_blocking_mutex/latest/non_blocking_mutex/struct.NonBlockingMutex.html#nonblockingmutex)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-non_blocking_mutex-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/non_blocking_mutex/latest/non_blocking_mutex/)
 [![Build and test Rust](https://github.com/ivanivanyuk1993/utility.non_blocking_mutex/actions/workflows/rust.yml/badge.svg)](https://github.com/ivanivanyuk1993/utility.non_blocking_mutex/actions/workflows/rust.yml)
 
 ## Why you should use `NonBlockingMutex`
@@ -21,20 +21,213 @@ cargo bench
 cargo add non_blocking_mutex
 ```
 
-## Example
+## Examples
+### Optimized for 1 type of `NonBlockingMutexTask`
 ```rust
-use non_blocking_mutex::NonBlockingMutex;
+use non_blocking_mutex::mutex_guard::MutexGuard;
+use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 use std::thread::{available_parallelism};
 
-/// How many threads can physically access [NonBlockingMutexForSizedTaskWithStaticDispatch]
+/// How many threads can physically access [NonBlockingMutex]
 /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
 /// used to store queue of tasks
 let max_concurrent_thread_count = available_parallelism().unwrap().get();
 
 let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
-non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state| {
+/// Will infer exact type and size(0) of this [FnOnce] and
+/// make sized [NonBlockingMutex] which takes only this exact [FnOnce]
+/// without ever requiring [Box]-ing or dynamic dispatch
+non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state: MutexGuard<usize>| {
     *state += 1;
 });
+```
+
+### Easy to use with any function, but may `Box` tasks and use dynamic dispatch
+```rust
+use non_blocking_mutex::dynamic_non_blocking_mutex::DynamicNonBlockingMutex;
+use std::thread::{available_parallelism, scope};
+
+/// How many threads can physically access [NonBlockingMutex]
+/// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+/// used to store queue of tasks
+let max_concurrent_thread_count = available_parallelism().unwrap().get();
+
+let mut state_snapshot_before_increment = 0;
+let mut state_snapshot_after_increment = 0;
+
+let mut state_snapshot_before_decrement = 0;
+let mut state_snapshot_after_decrement = 0;
+
+{
+    /// Will infer exact type and size of struct [Task] and
+    /// make sized [NonBlockingMutex] which takes only [Task]
+    /// without ever requiring [Box]-ing or dynamic dispatch
+    let non_blocking_mutex = DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0);
+
+    scope(|scope| {
+        scope.spawn(|| {
+            non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|mut state| {
+                *(&mut state_snapshot_before_increment) = *state;
+                *state += 1;
+                *(&mut state_snapshot_after_increment) = *state;
+            });
+            non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|mut state| {
+                *(&mut state_snapshot_before_decrement) = *state;
+                *state -= 1;
+                *(&mut state_snapshot_after_decrement) = *state;
+            });
+        });
+    });
+}
+
+assert_eq!(state_snapshot_before_increment, 0);
+assert_eq!(state_snapshot_after_increment, 1);
+
+assert_eq!(state_snapshot_before_decrement, 1);
+assert_eq!(state_snapshot_after_decrement, 0);
+```
+
+### Optimized for multiple known types of [NonBlockingMutexTask] which capture variables
+```rust
+use non_blocking_mutex::mutex_guard::MutexGuard;
+use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
+use non_blocking_mutex::non_blocking_mutex_task::NonBlockingMutexTask;
+use std::thread::{available_parallelism, scope};
+
+/// How many threads can physically access [NonBlockingMutex]
+/// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+/// used to store queue of tasks
+let max_concurrent_thread_count = available_parallelism().unwrap().get();
+
+struct SnapshotsBeforeAndAfterChangeRefs<
+    'snapshot_before_change_ref,
+    'snapshot_after_change_ref,
+> {
+    /// Where to write snapshot of `State` before applying function to `State`
+    snapshot_before_change_ref: &'snapshot_before_change_ref mut usize,
+    /// Where to write snapshot of `State` after applying function to `State
+    snapshot_after_change_ref: &'snapshot_after_change_ref mut usize,
+}
+
+enum TaskType<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
+    IncrementAndStoreSnapshots(
+        SnapshotsBeforeAndAfterChangeRefs<
+            'snapshot_before_change_ref,
+            'snapshot_after_change_ref,
+        >,
+    ),
+    DecrementAndStoreSnapshots(
+        SnapshotsBeforeAndAfterChangeRefs<
+            'snapshot_before_change_ref,
+            'snapshot_after_change_ref,
+        >,
+    ),
+}
+
+struct Task<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
+    task_type: TaskType<'snapshot_before_change_ref, 'snapshot_after_change_ref>,
+}
+
+impl<'snapshot_before_change_ref, 'snapshot_after_change_ref>
+    Task<'snapshot_before_change_ref, 'snapshot_after_change_ref>
+{
+    fn new_increment_and_store_snapshots(
+        // Where to write snapshot of `State` before applying function to `State`
+        snapshot_before_change_ref: &'snapshot_before_change_ref mut usize,
+        // Where to write snapshot of `State` after applying function to `State
+        snapshot_after_change_ref: &'snapshot_after_change_ref mut usize,
+    ) -> Self {
+        Self {
+            task_type: TaskType::IncrementAndStoreSnapshots(
+                SnapshotsBeforeAndAfterChangeRefs {
+                    /// Where to write snapshot of `State` before applying function to `State`
+                    snapshot_before_change_ref,
+                    /// Where to write snapshot of `State` after applying function to `State
+                    snapshot_after_change_ref,
+                },
+            ),
+        }
+    }
+
+    fn new_decrement_and_store_snapshots(
+        // Where to write snapshot of `State` before applying function to `State`
+        snapshot_before_change_ref: &'snapshot_before_change_ref mut usize,
+        // Where to write snapshot of `State` after applying function to `State
+        snapshot_after_change_ref: &'snapshot_after_change_ref mut usize,
+    ) -> Self {
+        Self {
+            task_type: TaskType::DecrementAndStoreSnapshots(
+                SnapshotsBeforeAndAfterChangeRefs {
+                    /// Where to write snapshot of `State` before applying function to `State`
+                    snapshot_before_change_ref,
+                    /// Where to write snapshot of `State` after applying function to `State
+                    snapshot_after_change_ref,
+                },
+            ),
+        }
+    }
+}
+
+impl<'snapshot_before_change_ref, 'snapshot_after_change_ref> NonBlockingMutexTask<usize>
+    for Task<'snapshot_before_change_ref, 'snapshot_after_change_ref>
+{
+    fn run_with_state(self, mut state: MutexGuard<usize>) {
+        match self.task_type {
+            TaskType::IncrementAndStoreSnapshots(SnapshotsBeforeAndAfterChangeRefs {
+                snapshot_before_change_ref,
+                snapshot_after_change_ref,
+            }) => {
+                *snapshot_before_change_ref = *state;
+                *state += 1;
+                *snapshot_after_change_ref = *state;
+            }
+            TaskType::DecrementAndStoreSnapshots(SnapshotsBeforeAndAfterChangeRefs {
+                snapshot_before_change_ref,
+                snapshot_after_change_ref,
+            }) => {
+                *snapshot_before_change_ref = *state;
+                *state -= 1;
+                *snapshot_after_change_ref = *state;
+            }
+        }
+    }
+}
+
+let mut state_snapshot_before_increment = 0;
+let mut state_snapshot_after_increment = 0;
+
+let mut state_snapshot_before_decrement = 0;
+let mut state_snapshot_after_decrement = 0;
+
+{
+    /// Will infer exact type and size of struct [Task] and
+    /// make sized [NonBlockingMutex] which takes only [Task]
+    /// without ever requiring [Box]-ing or dynamic dispatch
+    let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+
+    scope(|scope| {
+        scope.spawn(|| {
+            non_blocking_mutex.run_if_first_or_schedule_on_first(
+                Task::new_increment_and_store_snapshots(
+                    &mut state_snapshot_before_increment,
+                    &mut state_snapshot_after_increment,
+                ),
+            );
+            non_blocking_mutex.run_if_first_or_schedule_on_first(
+                Task::new_decrement_and_store_snapshots(
+                    &mut state_snapshot_before_decrement,
+                    &mut state_snapshot_after_decrement,
+                ),
+            );
+        });
+    });
+}
+
+assert_eq!(state_snapshot_before_increment, 0);
+assert_eq!(state_snapshot_after_increment, 1);
+
+assert_eq!(state_snapshot_before_decrement, 1);
+assert_eq!(state_snapshot_after_decrement, 0);
 ```
 
 ## Why you may want to not use `NonBlockingMutex`

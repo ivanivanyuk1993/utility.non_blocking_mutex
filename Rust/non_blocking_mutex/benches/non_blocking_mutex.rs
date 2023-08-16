@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use nameof::name_of;
+use non_blocking_mutex::dynamic_non_blocking_mutex::DynamicNonBlockingMutex;
 use non_blocking_mutex::mutex_guard::MutexGuard;
-use non_blocking_mutex::non_blocking_mutex_for_sized_task_with_static_dispatch::NonBlockingMutexForSizedTaskWithStaticDispatch;
-use non_blocking_mutex::NonBlockingMutex;
+use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 use std::hint;
 use std::sync::Mutex;
 use std::thread::{available_parallelism, scope};
@@ -13,14 +13,16 @@ fn increment_once_without_mutex(number: &mut usize) {
 }
 
 fn increment_once_under_non_blocking_mutex_static<Task: Send + FnOnce(MutexGuard<'_, usize>)>(
-    non_blocking_mutex: &NonBlockingMutexForSizedTaskWithStaticDispatch<usize, Task>,
+    non_blocking_mutex: &NonBlockingMutex<usize, Task>,
     task: Task,
 ) {
     non_blocking_mutex.run_if_first_or_schedule_on_first(task);
 }
 
-fn increment_once_under_non_blocking_mutex_dynamic(non_blocking_mutex: &NonBlockingMutex<usize>) {
-    non_blocking_mutex.run_if_first_or_schedule_on_first(|mut state: MutexGuard<usize>| {
+fn increment_once_under_non_blocking_mutex_dynamic(
+    non_blocking_mutex: &DynamicNonBlockingMutex<usize>,
+) {
+    non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(|mut state: MutexGuard<usize>| {
         *state += 1;
         black_box(state);
     });
@@ -50,8 +52,7 @@ fn increment_under_non_blocking_mutex_concurrently_static(
     operation_count: usize,
     spin_under_lock_count: usize,
 ) {
-    let non_blocking_mutex =
-        NonBlockingMutexForSizedTaskWithStaticDispatch::new(max_concurrent_thread_count, 0);
+    let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
 
     scope(|scope| {
         for _ in 0..max_concurrent_thread_count {
@@ -80,22 +81,24 @@ fn increment_under_non_blocking_mutex_concurrently_dynamic(
     operation_count: usize,
     spin_under_lock_count: usize,
 ) {
-    let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+    let non_blocking_mutex = DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0);
 
     scope(|scope| {
         for _ in 0..max_concurrent_thread_count {
             scope.spawn(|| {
                 for _i in 0..operation_count {
-                    non_blocking_mutex.run_if_first_or_schedule_on_first(move |mut state| {
-                        *state += 1;
-                        black_box(*state);
+                    non_blocking_mutex.run_fn_once_if_first_or_schedule_on_first(
+                        move |mut state| {
+                            *state += 1;
+                            black_box(*state);
 
-                        let mut spin_under_lock_count_left = spin_under_lock_count;
-                        while spin_under_lock_count_left != 0 {
-                            hint::spin_loop();
-                            spin_under_lock_count_left -= 1;
-                        }
-                    })
+                            let mut spin_under_lock_count_left = spin_under_lock_count;
+                            while spin_under_lock_count_left != 0 {
+                                hint::spin_loop();
+                                spin_under_lock_count_left -= 1;
+                            }
+                        },
+                    )
                 }
             });
         }
@@ -204,9 +207,8 @@ fn criterion_benchmark(criterion: &mut Criterion) {
     criterion.bench_function(
         "increment_once_under_non_blocking_mutex_static",
         |bencher| {
-            let non_blocking_mutex = black_box(
-                NonBlockingMutexForSizedTaskWithStaticDispatch::new(max_concurrent_thread_count, 0),
-            );
+            let non_blocking_mutex =
+                black_box(NonBlockingMutex::new(max_concurrent_thread_count, 0));
 
             let task = |mut state: MutexGuard<usize>| {
                 *state += 1;
@@ -221,7 +223,7 @@ fn criterion_benchmark(criterion: &mut Criterion) {
         name_of!(increment_once_under_non_blocking_mutex_dynamic),
         |bencher| {
             let non_blocking_mutex =
-                black_box(NonBlockingMutex::new(max_concurrent_thread_count, 0));
+                black_box(DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0));
             bencher.iter(|| increment_once_under_non_blocking_mutex_dynamic(&non_blocking_mutex))
         },
     );
