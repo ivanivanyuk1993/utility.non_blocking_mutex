@@ -4,8 +4,11 @@ use crate::non_blocking_mutex::NonBlockingMutex;
 use crate::non_blocking_mutex_task::NonBlockingMutexTask;
 use std::sync::atomic::Ordering;
 
-pub type DynamicNonBlockingMutex<'captured_variables, State> =
-    NonBlockingMutex<State, DynamicNonBlockingMutexTask<'captured_variables, State>>;
+pub type DynamicNonBlockingMutex<'captured_variables, State> = NonBlockingMutex<
+    'captured_variables,
+    State,
+    DynamicNonBlockingMutexTask<'captured_variables, State>,
+>;
 
 impl<'captured_variables, State> DynamicNonBlockingMutex<'captured_variables, State> {
     /// Please don't forget that order of execution is not guaranteed. Atomicity of operations is guaranteed,

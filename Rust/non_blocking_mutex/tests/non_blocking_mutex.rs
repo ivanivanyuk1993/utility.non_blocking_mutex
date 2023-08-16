@@ -106,27 +106,52 @@ fn can_use_Fn_recursively() {
         increment(&mut count);
         increment(&mut count);
 
-        enum TaskArgsEnum<'last_state_ref, 'state_ref, Increment: FnMut(&mut usize) + Send> {
+        enum TaskArgsEnum<
+            'captured_variables,
+            'last_state_ref,
+            'state_ref,
+            Increment: FnMut(&mut usize) + Send,
+        > {
             IncrementAndRunRecursion(
                 Increment,
-                Arc<NonBlockingMutex<usize, Task<'last_state_ref, 'state_ref, Increment>>>,
+                Arc<
+                    NonBlockingMutex<
+                        'captured_variables,
+                        usize,
+                        Task<'captured_variables, 'last_state_ref, 'state_ref, Increment>,
+                    >,
+                >,
                 &'state_ref mut usize,
             ),
             IncrementAndSetStateSnapshot(Increment, &'state_ref mut usize),
             SetLastState(&'last_state_ref mut usize),
         }
 
-        struct Task<'last_state_ref, 'state_ref, Increment: FnMut(&mut usize) + Send> {
-            task_args_enum: TaskArgsEnum<'last_state_ref, 'state_ref, Increment>,
+        struct Task<
+            'captured_variables,
+            'last_state_ref,
+            'state_ref,
+            Increment: FnMut(&mut usize) + Send,
+        > {
+            task_args_enum:
+                TaskArgsEnum<'captured_variables, 'last_state_ref, 'state_ref, Increment>,
         }
 
-        impl<'last_state_ref, 'state_ref, Increment: FnMut(&mut usize) + Send>
-            Task<'last_state_ref, 'state_ref, Increment>
+        impl<
+                'captured_variables,
+                'last_state_ref,
+                'state_ref,
+                Increment: FnMut(&mut usize) + Send,
+            > Task<'captured_variables, 'last_state_ref, 'state_ref, Increment>
         {
             pub fn new_increment_and_run_recursive(
                 increment: Increment,
                 non_blocking_mutex_arc: Arc<
-                    NonBlockingMutex<usize, Task<'last_state_ref, 'state_ref, Increment>>,
+                    NonBlockingMutex<
+                        'captured_variables,
+                        usize,
+                        Task<'captured_variables, 'last_state_ref, 'state_ref, Increment>,
+                    >,
                 >,
                 state_ref: &'state_ref mut usize,
             ) -> Self {
@@ -157,8 +182,13 @@ fn can_use_Fn_recursively() {
             }
         }
 
-        impl<'last_state_ref, 'state_ref, Increment: FnMut(&mut usize) + Send>
-            NonBlockingMutexTask<usize> for Task<'last_state_ref, 'state_ref, Increment>
+        impl<
+                'captured_variables,
+                'last_state_ref,
+                'state_ref,
+                Increment: FnMut(&mut usize) + Send,
+            > NonBlockingMutexTask<usize>
+            for Task<'captured_variables, 'last_state_ref, 'state_ref, Increment>
         {
             fn run_with_state(self, mut state: MutexGuard<usize>) -> () {
                 match self.task_args_enum {
@@ -311,27 +341,52 @@ fn can_use_FnMut_recursively() {
         increment(&mut count);
         increment(&mut count);
 
-        enum TaskArgsEnum<'last_state_ref, 'state_ref, Increment: FnMut(&mut usize) + Send> {
+        enum TaskArgsEnum<
+            'captured_variables,
+            'last_state_ref,
+            'state_ref,
+            Increment: FnMut(&mut usize) + Send,
+        > {
             IncrementAndRunRecursion(
                 Increment,
-                Arc<NonBlockingMutex<usize, Task<'last_state_ref, 'state_ref, Increment>>>,
+                Arc<
+                    NonBlockingMutex<
+                        'captured_variables,
+                        usize,
+                        Task<'captured_variables, 'last_state_ref, 'state_ref, Increment>,
+                    >,
+                >,
                 &'state_ref mut usize,
             ),
             IncrementAndSetStateSnapshot(Increment, &'state_ref mut usize),
             SetLastState(&'last_state_ref mut usize),
         }
 
-        struct Task<'last_state_ref, 'state_ref, Increment: FnMut(&mut usize) + Send> {
-            task_args_enum: TaskArgsEnum<'last_state_ref, 'state_ref, Increment>,
+        struct Task<
+            'captured_variables,
+            'last_state_ref,
+            'state_ref,
+            Increment: FnMut(&mut usize) + Send,
+        > {
+            task_args_enum:
+                TaskArgsEnum<'captured_variables, 'last_state_ref, 'state_ref, Increment>,
         }
 
-        impl<'last_state_ref, 'state_ref, Increment: FnMut(&mut usize) + Send>
-            Task<'last_state_ref, 'state_ref, Increment>
+        impl<
+                'captured_variables,
+                'last_state_ref,
+                'state_ref,
+                Increment: FnMut(&mut usize) + Send,
+            > Task<'captured_variables, 'last_state_ref, 'state_ref, Increment>
         {
             pub fn new_increment_and_run_recursive(
                 increment: Increment,
                 non_blocking_mutex_arc: Arc<
-                    NonBlockingMutex<usize, Task<'last_state_ref, 'state_ref, Increment>>,
+                    NonBlockingMutex<
+                        'captured_variables,
+                        usize,
+                        Task<'captured_variables, 'last_state_ref, 'state_ref, Increment>,
+                    >,
                 >,
                 state_ref: &'state_ref mut usize,
             ) -> Self {
@@ -362,8 +417,13 @@ fn can_use_FnMut_recursively() {
             }
         }
 
-        impl<'last_state_ref, 'state_ref, Increment: FnMut(&mut usize) + Send>
-            NonBlockingMutexTask<usize> for Task<'last_state_ref, 'state_ref, Increment>
+        impl<
+                'captured_variables,
+                'last_state_ref,
+                'state_ref,
+                Increment: FnMut(&mut usize) + Send,
+            > NonBlockingMutexTask<usize>
+            for Task<'captured_variables, 'last_state_ref, 'state_ref, Increment>
         {
             fn run_with_state(self, mut state: MutexGuard<usize>) -> () {
                 match self.task_args_enum {
@@ -412,8 +472,6 @@ fn can_use_FnMut_recursively() {
 #[test]
 fn small_state_is_expected() {
     let max_concurrent_thread_count = available_parallelism().unwrap().get();
-    let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
-    let non_blocking_mutex_ref = &non_blocking_mutex;
     let operation_count = 1e4 as usize;
 
     enum TaskArgsEnum<'state_ref> {
@@ -452,20 +510,26 @@ fn small_state_is_expected() {
         }
     }
 
-    scope(move |scope| {
-        for _ in 0..max_concurrent_thread_count {
-            scope.spawn(move || {
-                for _i in 0..operation_count {
-                    non_blocking_mutex_ref.run_if_first_or_schedule_on_first(Task::new_increment());
-                }
-            });
-        }
-    });
+    let mut actual_state = 0;
+    {
+        let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+        let non_blocking_mutex_ref = &non_blocking_mutex;
+        scope(|scope| {
+            for _ in 0..max_concurrent_thread_count {
+                scope.spawn(|| {
+                    for _i in 0..operation_count {
+                        non_blocking_mutex_ref
+                            .run_if_first_or_schedule_on_first(Task::new_increment());
+                    }
+                });
+            }
+        });
+
+        non_blocking_mutex
+            .run_if_first_or_schedule_on_first(Task::new_set_state_snapshot(&mut actual_state));
+    }
 
     let expected_state = operation_count * max_concurrent_thread_count;
-    let mut actual_state = 0;
-    non_blocking_mutex
-        .run_if_first_or_schedule_on_first(Task::new_set_state_snapshot(&mut actual_state));
 
     assert_eq!(expected_state, actual_state);
 }
@@ -481,16 +545,6 @@ fn big_state_is_expected() {
         c: usize,
         d: usize,
     }
-    let non_blocking_mutex = NonBlockingMutex::new(
-        max_concurrent_thread_count,
-        BigState {
-            a: 0,
-            b: 0,
-            c: 0,
-            d: 0,
-        },
-    );
-    let non_blocking_mutex_ref = &non_blocking_mutex;
     let operation_count = 1e4 as usize;
 
     enum TaskArgsEnum<'state_ref> {
@@ -532,15 +586,37 @@ fn big_state_is_expected() {
         }
     }
 
-    scope(|scope| {
-        for _ in 0..max_concurrent_thread_count {
-            scope.spawn(|| {
-                for _i in 0..operation_count {
-                    non_blocking_mutex_ref.run_if_first_or_schedule_on_first(Task::new_increment());
-                }
-            });
-        }
-    });
+    let mut actual_state = BigState {
+        a: 0,
+        b: 0,
+        c: 0,
+        d: 0,
+    };
+    {
+        let non_blocking_mutex = NonBlockingMutex::new(
+            max_concurrent_thread_count,
+            BigState {
+                a: 0,
+                b: 0,
+                c: 0,
+                d: 0,
+            },
+        );
+        let non_blocking_mutex_ref = &non_blocking_mutex;
+        scope(|scope| {
+            for _ in 0..max_concurrent_thread_count {
+                scope.spawn(|| {
+                    for _i in 0..operation_count {
+                        non_blocking_mutex_ref
+                            .run_if_first_or_schedule_on_first(Task::new_increment());
+                    }
+                });
+            }
+        });
+
+        non_blocking_mutex
+            .run_if_first_or_schedule_on_first(Task::new_set_state_snapshot(&mut actual_state));
+    }
 
     let expected_state = BigState {
         a: operation_count * max_concurrent_thread_count,
@@ -548,14 +624,6 @@ fn big_state_is_expected() {
         c: operation_count * max_concurrent_thread_count * 3,
         d: operation_count * max_concurrent_thread_count * 4,
     };
-    let mut actual_state = BigState {
-        a: 0,
-        b: 0,
-        c: 0,
-        d: 0,
-    };
-    non_blocking_mutex
-        .run_if_first_or_schedule_on_first(Task::new_set_state_snapshot(&mut actual_state));
 
     assert_eq!(expected_state, actual_state);
 }
@@ -766,27 +834,29 @@ fn can_capture_variables_in_scoped_threads() {
     let mut state_snapshot_before_decrement = 0;
     let mut state_snapshot_after_decrement = 0;
 
-    /// Will infer exact type and size of struct [Task] and
-    /// make sized [NonBlockingMutex] which takes only [Task]
-    /// without ever requiring [Box]-ing or dynamic dispatch
-    let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+    {
+        /// Will infer exact type and size of struct [Task] and
+        /// make sized [NonBlockingMutex] which takes only [Task]
+        /// without ever requiring [Box]-ing or dynamic dispatch
+        let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
 
-    scope(|scope| {
-        scope.spawn(|| {
-            non_blocking_mutex.run_if_first_or_schedule_on_first(
-                Task::new_increment_and_store_snapshots(
-                    &mut state_snapshot_before_increment,
-                    &mut state_snapshot_after_increment,
-                ),
-            );
-            non_blocking_mutex.run_if_first_or_schedule_on_first(
-                Task::new_decrement_and_store_snapshots(
-                    &mut state_snapshot_before_decrement,
-                    &mut state_snapshot_after_decrement,
-                ),
-            );
+        scope(|scope| {
+            scope.spawn(|| {
+                non_blocking_mutex.run_if_first_or_schedule_on_first(
+                    Task::new_increment_and_store_snapshots(
+                        &mut state_snapshot_before_increment,
+                        &mut state_snapshot_after_increment,
+                    ),
+                );
+                non_blocking_mutex.run_if_first_or_schedule_on_first(
+                    Task::new_decrement_and_store_snapshots(
+                        &mut state_snapshot_before_decrement,
+                        &mut state_snapshot_after_decrement,
+                    ),
+                );
+            });
         });
-    });
+    }
 
     assert_eq!(state_snapshot_before_increment, 0);
     assert_eq!(state_snapshot_after_increment, 1);

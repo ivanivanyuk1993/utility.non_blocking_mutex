@@ -3,12 +3,20 @@ use crate::non_blocking_mutex_task::NonBlockingMutexTask;
 use crossbeam_utils::CachePadded;
 use sharded_queue::ShardedQueue;
 use std::cell::UnsafeCell;
+use std::marker::PhantomData;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask: NonBlockingMutexTask<State>> {
+pub struct NonBlockingMutex<
+    'captured_variables,
+    State,
+    TNonBlockingMutexTask: NonBlockingMutexTask<State> + 'captured_variables,
+> {
     pub(crate) task_count: CachePadded<AtomicUsize>,
     pub(crate) task_queue: ShardedQueue<TNonBlockingMutexTask>,
     pub(crate) unsafe_state: UnsafeCell<State>,
+
+    _phantom_task_queue:
+        PhantomData<ShardedQueue<Box<dyn NonBlockingMutexTask<State> + 'captured_variables>>>,
 }
 
 /// # [NonBlockingMutex]
@@ -46,17 +54,21 @@ pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask: NonBlockingMut
 ///
 /// ### Optimized for multiple known types of [NonBlockingMutexTask] which capture variables
 /// ```rust
-/// use std::thread::{available_parallelism, scope};
 /// use non_blocking_mutex::mutex_guard::MutexGuard;
 /// use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
 /// use non_blocking_mutex::non_blocking_mutex_task::NonBlockingMutexTask;
+/// use std::thread::{available_parallelism, scope};
 ///
 /// /// How many threads can physically access [NonBlockingMutex]
 /// /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
 /// /// used to store queue of tasks
 /// let max_concurrent_thread_count = available_parallelism().unwrap().get();
 ///
-/// struct SnapshotsBeforeAndAfterChangeRefs<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
+///
+/// struct SnapshotsBeforeAndAfterChangeRefs<
+///     'snapshot_before_change_ref,
+///     'snapshot_after_change_ref,
+/// > {
 ///     /// Where to write snapshot of `State` before applying function to `State`
 ///     snapshot_before_change_ref: &'snapshot_before_change_ref mut usize,
 ///     /// Where to write snapshot of `State` after applying function to `State
@@ -64,15 +76,27 @@ pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask: NonBlockingMut
 /// }
 ///
 /// enum TaskType<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
-///     IncrementAndStoreSnapshots(SnapshotsBeforeAndAfterChangeRefs<'snapshot_before_change_ref, 'snapshot_after_change_ref>),
-///     DecrementAndStoreSnapshots(SnapshotsBeforeAndAfterChangeRefs<'snapshot_before_change_ref, 'snapshot_after_change_ref>),
+///     IncrementAndStoreSnapshots(
+///         SnapshotsBeforeAndAfterChangeRefs<
+///             'snapshot_before_change_ref,
+///             'snapshot_after_change_ref,
+///         >,
+///     ),
+///     DecrementAndStoreSnapshots(
+///         SnapshotsBeforeAndAfterChangeRefs<
+///             'snapshot_before_change_ref,
+///             'snapshot_after_change_ref,
+///         >,
+///     ),
 /// }
 ///
 /// struct Task<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
 ///     task_type: TaskType<'snapshot_before_change_ref, 'snapshot_after_change_ref>,
 /// }
 ///
-/// impl<'snapshot_before_change_ref, 'snapshot_after_change_ref> Task<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
+/// impl<'snapshot_before_change_ref, 'snapshot_after_change_ref>
+///     Task<'snapshot_before_change_ref, 'snapshot_after_change_ref>
+/// {
 ///     fn new_increment_and_store_snapshots(
 ///         // Where to write snapshot of `State` before applying function to `State`
 ///         snapshot_before_change_ref: &'snapshot_before_change_ref mut usize,
@@ -86,8 +110,8 @@ pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask: NonBlockingMut
 ///                     snapshot_before_change_ref,
 ///                     /// Where to write snapshot of `State` after applying function to `State
 ///                     snapshot_after_change_ref,
-///                 }
-///             )
+///                 },
+///             ),
 ///         }
 ///     }
 ///
@@ -104,13 +128,15 @@ pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask: NonBlockingMut
 ///                     snapshot_before_change_ref,
 ///                     /// Where to write snapshot of `State` after applying function to `State
 ///                     snapshot_after_change_ref,
-///                 }
-///             )
+///                 },
+///             ),
 ///         }
 ///     }
 /// }
 ///
-/// impl<'snapshot_before_change_ref, 'snapshot_after_change_ref> NonBlockingMutexTask<usize> for Task<'snapshot_before_change_ref, 'snapshot_after_change_ref> {
+/// impl<'snapshot_before_change_ref, 'snapshot_after_change_ref> NonBlockingMutexTask<usize>
+///     for Task<'snapshot_before_change_ref, 'snapshot_after_change_ref>
+/// {
 ///     fn run_with_state(self, mut state: MutexGuard<usize>) {
 ///         match self.task_type {
 ///             TaskType::IncrementAndStoreSnapshots(SnapshotsBeforeAndAfterChangeRefs {
@@ -139,22 +165,29 @@ pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask: NonBlockingMut
 /// let mut state_snapshot_before_decrement = 0;
 /// let mut state_snapshot_after_decrement = 0;
 ///
-/// /// Will infer exact type and size of struct [Task] and
-/// /// make sized [NonBlockingMutex] which takes only [Task]
-/// /// without ever requiring [Box]-ing or dynamic dispatch
-/// let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
-/// scope(|scope| {
-///     scope.spawn(|| {
-///         non_blocking_mutex.run_if_first_or_schedule_on_first(Task::new_increment_and_store_snapshots(
-///             &mut state_snapshot_before_increment,
-///             &mut state_snapshot_after_increment,
-///         ));
-///         non_blocking_mutex.run_if_first_or_schedule_on_first(Task::new_decrement_and_store_snapshots(
-///             &mut state_snapshot_before_decrement,
-///             &mut state_snapshot_after_decrement,
-///         ));
+/// {
+///     /// Will infer exact type and size of struct [Task] and
+///     /// make sized [NonBlockingMutex] which takes only [Task]
+///     /// without ever requiring [Box]-ing or dynamic dispatch
+///     let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+///
+///     scope(|scope| {
+///         scope.spawn(|| {
+///             non_blocking_mutex.run_if_first_or_schedule_on_first(
+///                 Task::new_increment_and_store_snapshots(
+///                     &mut state_snapshot_before_increment,
+///                     &mut state_snapshot_after_increment,
+///                 ),
+///             );
+///             non_blocking_mutex.run_if_first_or_schedule_on_first(
+///                 Task::new_decrement_and_store_snapshots(
+///                     &mut state_snapshot_before_decrement,
+///                     &mut state_snapshot_after_decrement,
+///                 ),
+///             );
+///         });
 ///     });
-/// });
+/// }
 ///
 /// assert_eq!(state_snapshot_before_increment, 0);
 /// assert_eq!(state_snapshot_after_increment, 1);
@@ -205,8 +238,8 @@ pub struct NonBlockingMutex<State: ?Sized, TNonBlockingMutexTask: NonBlockingMut
 /// (because we have more CPU-s or because we want to do expensive
 /// calculations under lock), [NonBlockingMutex] performs better
 /// than [std::sync::Mutex]
-impl<State, TNonBlockingMutexTask: NonBlockingMutexTask<State>>
-    NonBlockingMutex<State, TNonBlockingMutexTask>
+impl<'captured_variables, State, TNonBlockingMutexTask: NonBlockingMutexTask<State>>
+    NonBlockingMutex<'captured_variables, State, TNonBlockingMutexTask>
 {
     /// # Arguments
     ///
@@ -218,6 +251,8 @@ impl<State, TNonBlockingMutexTask: NonBlockingMutexTask<State>>
             task_count: CachePadded::new(AtomicUsize::new(0)),
             task_queue: ShardedQueue::new(max_concurrent_thread_count),
             unsafe_state: UnsafeCell::new(state),
+
+            _phantom_task_queue: PhantomData,
         }
     }
 
@@ -246,12 +281,12 @@ impl<State, TNonBlockingMutexTask: NonBlockingMutexTask<State>>
 }
 
 /// [Send] and [Sync] logic was taken from [std::sync::Mutex]
-unsafe impl<State: ?Sized + Send, TNonBlockingMutexTask: NonBlockingMutexTask<State>> Send
-    for NonBlockingMutex<State, TNonBlockingMutexTask>
+unsafe impl<'captured_variables, State: Send, TNonBlockingMutexTask: NonBlockingMutexTask<State>>
+    Send for NonBlockingMutex<'captured_variables, State, TNonBlockingMutexTask>
 {
 }
-unsafe impl<State: ?Sized + Send, TNonBlockingMutexTask: NonBlockingMutexTask<State>> Sync
-    for NonBlockingMutex<State, TNonBlockingMutexTask>
+unsafe impl<'captured_variables, State: Send, TNonBlockingMutexTask: NonBlockingMutexTask<State>>
+    Sync for NonBlockingMutex<'captured_variables, State, TNonBlockingMutexTask>
 {
 }
 
