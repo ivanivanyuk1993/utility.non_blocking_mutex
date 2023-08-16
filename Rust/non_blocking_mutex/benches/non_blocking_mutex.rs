@@ -219,14 +219,14 @@ fn criterion_benchmark(criterion: &mut Criterion) {
                 .iter(|| increment_once_under_non_blocking_mutex_static(&non_blocking_mutex, task))
         },
     );
-    // criterion.bench_function(
-    //     name_of!(increment_once_under_non_blocking_mutex_dynamic),
-    //     |bencher| {
-    //         let non_blocking_mutex =
-    //             black_box(DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0));
-    //         bencher.iter(|| increment_once_under_non_blocking_mutex_dynamic(&non_blocking_mutex))
-    //     },
-    // );
+    criterion.bench_function(
+        name_of!(increment_once_under_non_blocking_mutex_dynamic),
+        |bencher| {
+            let non_blocking_mutex =
+                black_box(DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0));
+            bencher.iter(|| increment_once_under_non_blocking_mutex_dynamic(&non_blocking_mutex))
+        },
+    );
     criterion.bench_function(name_of!(increment_once_under_mutex_blockingly), |bencher| {
         let number_mutex = black_box(Mutex::new(0));
         bencher.iter(|| increment_once_under_mutex_blockingly(&number_mutex))
