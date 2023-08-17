@@ -1,5 +1,5 @@
 [package]
-categories = ["concurrency"]
+categories = ["algorithms", "concurrency"]
 description = "NonBlockingMutex is currently the fastest way to do expensive calculations under lock, or do cheap calculations under lock when concurrency/load/contention is very high"
 homepage = "https://github.com/ivanivanyuk1993/utility.non_blocking_mutex"
 keywords = ["concurrency", "lock", "mutex", "non-blocking-lock", "non-blocking-mutex"]
@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 name = "non_blocking_mutex"
 readme = "readme.md"
 repository = "https://github.com/ivanivanyuk1993/utility.non_blocking_mutex"
-version = "3.1.0"
+version = "3.1.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
