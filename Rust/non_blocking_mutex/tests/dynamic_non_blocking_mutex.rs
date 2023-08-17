@@ -345,11 +345,6 @@ fn dynamic_non_blocking_mutex_task_should_have_size_of_boxed_dyn_fn_once() {
 
 #[test]
 fn can_capture_variables_in_scoped_threads() {
-    /// How many threads can physically access [NonBlockingMutex]
-    /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
-    /// used to store queue of tasks
-    let max_concurrent_thread_count = available_parallelism().unwrap().get();
-
     let mut state_snapshot_before_increment = 0;
     let mut state_snapshot_after_increment = 0;
 
@@ -357,9 +352,14 @@ fn can_capture_variables_in_scoped_threads() {
     let mut state_snapshot_after_decrement = 0;
 
     {
-        /// Will infer exact type and size of struct [Task] and
-        /// make sized [NonBlockingMutex] which takes only [Task]
-        /// without ever requiring [Box]-ing or dynamic dispatch
+        /// How many threads can physically access [NonBlockingMutex]
+        /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+        /// used to store queue of tasks
+        let max_concurrent_thread_count = available_parallelism().unwrap().get();
+
+        /// Will work with any [FnOnce] and is easy to use,
+        /// but will [Box] tasks and use dynamic dispatch
+        /// when can't acquire lock on first try
         let non_blocking_mutex = DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0);
 
         scope(|scope| {

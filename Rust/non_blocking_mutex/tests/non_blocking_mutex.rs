@@ -729,10 +729,46 @@ fn task_without_captured_variables_should_be_zero_sized() {
 
 #[test]
 fn can_capture_variables_in_scoped_threads() {
-    /// How many threads can physically access [NonBlockingMutex]
-    /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
-    /// used to store queue of tasks
-    let max_concurrent_thread_count = available_parallelism().unwrap().get();
+    let mut state_snapshot_before_increment = 0;
+    let mut state_snapshot_after_increment = 0;
+
+    let mut state_snapshot_before_decrement = 0;
+    let mut state_snapshot_after_decrement = 0;
+
+    {
+        /// How many threads can physically access [NonBlockingMutex]
+        /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+        /// used to store queue of tasks
+        let max_concurrent_thread_count = available_parallelism().unwrap().get();
+
+        /// Will infer exact type and size of struct [Task] and
+        /// make sized [NonBlockingMutex] which takes only [Task]
+        /// without ever requiring [Box]-ing or dynamic dispatch
+        let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+
+        scope(|scope| {
+            scope.spawn(|| {
+                non_blocking_mutex.run_if_first_or_schedule_on_first(
+                    Task::new_increment_and_store_snapshots(
+                        &mut state_snapshot_before_increment,
+                        &mut state_snapshot_after_increment,
+                    ),
+                );
+                non_blocking_mutex.run_if_first_or_schedule_on_first(
+                    Task::new_decrement_and_store_snapshots(
+                        &mut state_snapshot_before_decrement,
+                        &mut state_snapshot_after_decrement,
+                    ),
+                );
+            });
+        });
+    }
+
+    assert_eq!(state_snapshot_before_increment, 0);
+    assert_eq!(state_snapshot_after_increment, 1);
+
+    assert_eq!(state_snapshot_before_decrement, 1);
+    assert_eq!(state_snapshot_after_decrement, 0);
 
     struct SnapshotsBeforeAndAfterChangeRefs<
         'snapshot_before_change_ref,
@@ -827,40 +863,4 @@ fn can_capture_variables_in_scoped_threads() {
             }
         }
     }
-
-    let mut state_snapshot_before_increment = 0;
-    let mut state_snapshot_after_increment = 0;
-
-    let mut state_snapshot_before_decrement = 0;
-    let mut state_snapshot_after_decrement = 0;
-
-    {
-        /// Will infer exact type and size of struct [Task] and
-        /// make sized [NonBlockingMutex] which takes only [Task]
-        /// without ever requiring [Box]-ing or dynamic dispatch
-        let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
-
-        scope(|scope| {
-            scope.spawn(|| {
-                non_blocking_mutex.run_if_first_or_schedule_on_first(
-                    Task::new_increment_and_store_snapshots(
-                        &mut state_snapshot_before_increment,
-                        &mut state_snapshot_after_increment,
-                    ),
-                );
-                non_blocking_mutex.run_if_first_or_schedule_on_first(
-                    Task::new_decrement_and_store_snapshots(
-                        &mut state_snapshot_before_decrement,
-                        &mut state_snapshot_after_decrement,
-                    ),
-                );
-            });
-        });
-    }
-
-    assert_eq!(state_snapshot_before_increment, 0);
-    assert_eq!(state_snapshot_after_increment, 1);
-
-    assert_eq!(state_snapshot_before_decrement, 1);
-    assert_eq!(state_snapshot_after_decrement, 0);
 }

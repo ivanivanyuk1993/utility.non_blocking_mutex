@@ -52,7 +52,7 @@ pub struct NonBlockingMutex<
 /// });
 /// ```
 ///
-/// ### Easy to use with any function, but may [Box] tasks and use dynamic dispatch
+/// ### Easy to use with any [FnOnce], but may [Box] tasks and use dynamic dispatch when can't acquire lock on first try
 /// ```rust
 /// use non_blocking_mutex::dynamic_non_blocking_mutex::DynamicNonBlockingMutex;
 /// use std::thread::{available_parallelism, scope};
