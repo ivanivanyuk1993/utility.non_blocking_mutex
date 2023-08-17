@@ -87,7 +87,7 @@ assert_eq!(state_snapshot_before_decrement, 1);
 assert_eq!(state_snapshot_after_decrement, 0);
 ```
 
-### Optimized for multiple known types of [NonBlockingMutexTask] which capture variables
+### Optimized for multiple known types of `NonBlockingMutexTask` which capture variables
 ```rust
 use non_blocking_mutex::mutex_guard::MutexGuard;
 use non_blocking_mutex::non_blocking_mutex::NonBlockingMutex;
