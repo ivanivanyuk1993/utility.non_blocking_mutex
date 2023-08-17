@@ -57,11 +57,6 @@ pub struct NonBlockingMutex<
 /// use non_blocking_mutex::dynamic_non_blocking_mutex::DynamicNonBlockingMutex;
 /// use std::thread::{available_parallelism, scope};
 ///
-/// /// How many threads can physically access [NonBlockingMutex]
-/// /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
-/// /// used to store queue of tasks
-/// let max_concurrent_thread_count = available_parallelism().unwrap().get();
-///
 /// let mut state_snapshot_before_increment = 0;
 /// let mut state_snapshot_after_increment = 0;
 ///
@@ -69,9 +64,14 @@ pub struct NonBlockingMutex<
 /// let mut state_snapshot_after_decrement = 0;
 ///
 /// {
-///     /// Will infer exact type and size of struct [Task] and
-///     /// make sized [NonBlockingMutex] which takes only [Task]
-///     /// without ever requiring [Box]-ing or dynamic dispatch
+///     /// How many threads can physically access [NonBlockingMutex]
+///     /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+///     /// used to store queue of tasks
+///     let max_concurrent_thread_count = available_parallelism().unwrap().get();
+///
+///     /// Will work with any [FnOnce] and is easy to use,
+///     /// but will [Box] tasks and use dynamic dispatch
+///     /// when can't acquire lock on first try
 ///     let non_blocking_mutex = DynamicNonBlockingMutex::new(max_concurrent_thread_count, 0);
 ///
 ///     scope(|scope| {
@@ -104,11 +104,46 @@ pub struct NonBlockingMutex<
 /// use non_blocking_mutex::non_blocking_mutex_task::NonBlockingMutexTask;
 /// use std::thread::{available_parallelism, scope};
 ///
-/// /// How many threads can physically access [NonBlockingMutex]
-/// /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
-/// /// used to store queue of tasks
-/// let max_concurrent_thread_count = available_parallelism().unwrap().get();
+/// let mut state_snapshot_before_increment = 0;
+/// let mut state_snapshot_after_increment = 0;
 ///
+/// let mut state_snapshot_before_decrement = 0;
+/// let mut state_snapshot_after_decrement = 0;
+///
+/// {
+///     /// How many threads can physically access [NonBlockingMutex]
+///     /// simultaneously, needed for computing `shard_count` of [ShardedQueue],
+///     /// used to store queue of tasks
+///     let max_concurrent_thread_count = available_parallelism().unwrap().get();
+///
+///     /// Will infer exact type and size of struct [Task] and
+///     /// make sized [NonBlockingMutex] which takes only [Task]
+///     /// without ever requiring [Box]-ing or dynamic dispatch
+///     let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
+///
+///     scope(|scope| {
+///         scope.spawn(|| {
+///             non_blocking_mutex.run_if_first_or_schedule_on_first(
+///                 Task::new_increment_and_store_snapshots(
+///                     &mut state_snapshot_before_increment,
+///                     &mut state_snapshot_after_increment,
+///                 ),
+///             );
+///             non_blocking_mutex.run_if_first_or_schedule_on_first(
+///                 Task::new_decrement_and_store_snapshots(
+///                     &mut state_snapshot_before_decrement,
+///                     &mut state_snapshot_after_decrement,
+///                 ),
+///             );
+///         });
+///     });
+/// }
+///
+/// assert_eq!(state_snapshot_before_increment, 0);
+/// assert_eq!(state_snapshot_after_increment, 1);
+///
+/// assert_eq!(state_snapshot_before_decrement, 1);
+/// assert_eq!(state_snapshot_after_decrement, 0);
 ///
 /// struct SnapshotsBeforeAndAfterChangeRefs<
 ///     'snapshot_before_change_ref,
@@ -203,42 +238,6 @@ pub struct NonBlockingMutex<
 ///         }
 ///     }
 /// }
-///
-/// let mut state_snapshot_before_increment = 0;
-/// let mut state_snapshot_after_increment = 0;
-///
-/// let mut state_snapshot_before_decrement = 0;
-/// let mut state_snapshot_after_decrement = 0;
-///
-/// {
-///     /// Will infer exact type and size of struct [Task] and
-///     /// make sized [NonBlockingMutex] which takes only [Task]
-///     /// without ever requiring [Box]-ing or dynamic dispatch
-///     let non_blocking_mutex = NonBlockingMutex::new(max_concurrent_thread_count, 0);
-///
-///     scope(|scope| {
-///         scope.spawn(|| {
-///             non_blocking_mutex.run_if_first_or_schedule_on_first(
-///                 Task::new_increment_and_store_snapshots(
-///                     &mut state_snapshot_before_increment,
-///                     &mut state_snapshot_after_increment,
-///                 ),
-///             );
-///             non_blocking_mutex.run_if_first_or_schedule_on_first(
-///                 Task::new_decrement_and_store_snapshots(
-///                     &mut state_snapshot_before_decrement,
-///                     &mut state_snapshot_after_decrement,
-///                 ),
-///             );
-///         });
-///     });
-/// }
-///
-/// assert_eq!(state_snapshot_before_increment, 0);
-/// assert_eq!(state_snapshot_after_increment, 1);
-///
-/// assert_eq!(state_snapshot_before_decrement, 1);
-/// assert_eq!(state_snapshot_after_decrement, 0);
 /// ```
 ///
 /// ## Why you may want to not use [NonBlockingMutex]
