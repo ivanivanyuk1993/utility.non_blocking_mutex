@@ -254,10 +254,10 @@ See benchmark logic in directory `benches` and reproduce results by running
 cargo bench
 ```
 ### Single fast operation in single thread without contention
-Dynamic `NonBlockingMutex` performs only a little bit slower than `Mutex`
+`DynamicNonBlockingMutex` performs only a little bit slower than `Mutex`
 when there is only 1 thread and 1 operation
-(because `NonBlockingMutex` doesn't `Box` and store in `ShardedQueue`
-first operation in loop), while `NonBlockingMutexForSizedTaskWithStaticDispatch`
+(because `DynamicNonBlockingMutex` doesn't `Box` and store in `ShardedQueue`
+first operation in loop), while `NonBlockingMutex`
 outperforms other synchronization options
 when there is only 1 thread and 1 operation
 
